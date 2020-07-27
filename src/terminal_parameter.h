@@ -496,6 +496,45 @@ inline int ParseTerminalParameterGNSSLog(
   return (ret > 0 ? 0 : -1);
 }
 
+// 封装CDRadio模块配置.
+// Args:
+//    bdrt:  业务口输出波特率.
+//    freq:  工作频点.
+//    recv_mode:  接收模式.
+//    form_code:  业务号.
+//    items:  保存解析的终端参数项的map容器.
+// Returns:
+//    成功返回0, 失败返回-1.
+inline int PackagingTerminalParameterCDRadio(
+    uint32_t const& bdrt, uint16_t const& freq,
+    uint8_t const& recv_mode, uint8_t const& form_code,
+    std::map<uint32_t, std::vector<uint8_t>>* items) {
+  int ret = !SetTerminalParameter(kCDRaiodServiceBDRT, bdrt, items) &&
+            !SetTerminalParameter(kCDRaiodWorkFreq, freq, items) &&
+            !SetTerminalParameter(kCDRaiodReceiceMode, recv_mode, items) &&
+            !SetTerminalParameter(kCDRaiodFormCode, form_code, items);
+  return (ret > 0 ? 0 : -1);
+}
+
+// 解析CDRadio模块配置.
+// Args:
+//    items:  终端参数项的map容器.
+//    bdrt:  保存解析的CDRadio模块业务口输出波特率.
+//    freq:  保存解析的CDRadio模块工作频点.
+//    recv_mode:  保存解析的CDRadio模块接收模式.
+//    form_code: 保存解析的CDRadio模块业务号.
+// Returns:
+//    成功返回0, 失败返回-1.
+inline int ParseTerminalParameterCDRadio(
+    std::map<uint32_t, std::vector<uint8_t>> const& items,
+    uint32_t* bdrt, uint16_t* freq, uint8_t* recv_mode, uint8_t* form_code) {
+  int ret = !GetTerminalParameter(items, kCDRaiodServiceBDRT, bdrt) &&
+            !GetTerminalParameter(items, kCDRaiodWorkFreq, freq) &&
+            !GetTerminalParameter(items, kCDRaiodReceiceMode, recv_mode) &&
+            !GetTerminalParameter(items, kCDRaiodFormCode, form_code);
+  return (ret > 0 ? 0 : -1);
+}
+
 // 封装Ntrip CORS差分站配置.
 // Args:
 //    ip:  Ntrip CORS服务器IP地址.

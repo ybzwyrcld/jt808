@@ -274,6 +274,19 @@ class JT808Client {
         loggga_en, logrmc_en, logatt_en,
         &parameter_.terminal_parameters);
   }
+  // 获取CDRadio模块配置.
+  int GetCDRadio(uint32_t* bdrt, uint16_t* freq,
+                 uint8_t* recv_mode, uint8_t* form_code) const {
+    return ParseTerminalParameterCDRadio(
+        parameter_.terminal_parameters, bdrt, freq, recv_mode, form_code);
+  }
+  // 设置CDRadio模块.
+  int SetCDRadio(uint32_t const& bdrt, uint16_t const& freq,
+                 uint8_t const& recv_mode, uint8_t const& form_code) {
+    return PackagingTerminalParameterCDRadio(
+        bdrt, freq, recv_mode, form_code,
+        &parameter_.terminal_parameters);
+  }
   // 获取Ntrip网络差分配置.
   int GetNtripCors(std::string* ip, uint16_t* port,
       std::string* user, std::string* pwd,

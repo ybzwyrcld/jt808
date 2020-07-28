@@ -362,6 +362,131 @@ class JT808Client {
     upgrade_callback_ = callback;
   }
 
+  //
+  //  区域路线相关.
+  //
+  // 获取当前多边形区域信息集.
+  PolygonAreaSet const& polygon_areas(void) const {
+    return polygon_areas_;
+  }
+  // 获取所有多边形区域.
+  int GetAllPolygonArea(PolygonAreaSet* areas) const {
+    if (areas == nullptr || polygon_areas_.empty()) return -1;
+    areas->clear();
+    areas->insert(polygon_areas_.begin(), polygon_areas_.end());
+    return 0;
+  }
+  // 获取指定ID的多边形区域.
+  int GetPolygonAreaByID(uint32_t const& id, PolygonArea* area) const {
+    if (area == nullptr || polygon_areas_.empty()) return -1;
+    auto const& it = polygon_areas_.find(id);
+    if (it != polygon_areas_.end()) return -1;
+    *area = it->second;
+    return 0;
+  }
+  // 新增一个多边形区域.
+  // Args:
+  //     area:  多边形区域.
+  // Returns:
+  //     区域ID已存在返回-1, 否则返回0.
+  int AddPolygonArea(PolygonArea const& area) {
+    auto const& id = area.area_id;
+    return (polygon_areas_.insert(std::make_pair(id, area)).second - 1);
+  }
+  // 新增一个多边形区域.
+  // Args:
+  //     id:  区域ID.
+  //     attr:  区域属性.
+  //     begin_time:  起始时间, 格式为"YYMMDDhhmmss";
+  //     end_time:  结束时间, 格式为"YYMMDDhhmmss";
+  //     max_speed:  最高时速, km/h;
+  //     overspeed_time:  超速持续时间, s;
+  //     vertices:  区域顶点, 按顺时针顺序依次存储;
+  // Returns:
+  //     区域ID已存在返回-1, 否则返回0.
+  int AddPolygonArea(uint32_t const& id, uint16_t const& attr,
+                     std::string const& begin_time,
+                     std::string const& end_time,
+                     uint16_t const& max_speed,
+                     uint8_t const& overspeed_time,
+                     std::vector<LocationPoint> const& vertices) {
+    PolygonArea area = {id, AreaAttribute {attr}, begin_time, end_time,
+                        max_speed, overspeed_time, vertices};
+    return (polygon_areas_.insert(std::make_pair(id, area)).second - 1);
+  }
+  // 更新一个多边形区域信息.
+  // 若区域ID不存在, 直接插入, 否则更新原有区域信息.
+  // Args:
+  //     id:  区域ID.
+  //     attr:  区域属性.
+  //     begin_time:  起始时间, 格式为"YYMMDDhhmmss";
+  //     end_time:  结束时间, 格式为"YYMMDDhhmmss";
+  //     max_speed:  最高时速, km/h;
+  //     overspeed_time:  超速持续时间, s;
+  //     vertices:  区域顶点, 按顺时针顺序依次存储;
+  // Returns:
+  //     None.
+  void UpdatePolygonArea(uint32_t const& id, uint16_t const& attr,
+                         std::string const& begin_time,
+                         std::string const& end_time,
+                         uint16_t const& max_speed,
+                         uint8_t const& overspeed_time,
+                         std::vector<LocationPoint> const& vertices) {
+    PolygonArea area = {id, AreaAttribute {attr}, begin_time, end_time,
+                        max_speed, overspeed_time, vertices};
+    polygon_areas_[id] = area;
+  }
+  // 更新指定的多边形区域.
+  // Args:
+  //     area:  多边形区域.
+  // Returns:
+  //     None.
+  void UpdatePolygonAreaByArea(PolygonArea const& area) {
+    polygon_areas_[area.area_id] = area;
+  }
+  // 更新指定的多边形区域.
+  // Args:
+  //     areas:  多边形区域信息集.
+  // Returns:
+  //     None.
+  void UpdatePolygonAreaByAreas(PolygonAreaSet const& areas) {
+    for (auto const& item : areas) {
+      polygon_areas_[item.first] = item.second;
+    }
+  }
+  // 删除指定ID多边形区域.
+  // Args:
+  //     id:  区域ID.
+  // Returns:
+  //     None.
+  void DeletePolygonAreaByID(uint32_t const& id) {
+    auto const& it = polygon_areas_.find(id);
+    if (it != polygon_areas_.end()) polygon_areas_.erase(it);
+  }
+  // 删除指定ID多边形区域.
+  // 区域ID集为空时, 删除所有多边形区域信息.
+  // Args:
+  //     ids:  区域ID集.
+  // Returns:
+  //     None.
+  void DeletePolygonAreaByIDs(std::vector<uint32_t> const& ids) {
+    if (ids.empty()) {
+      DeleteAllPolygonArea();
+      return;
+    }
+    for (auto const& id : ids) {
+      DeletePolygonAreaByID(id);
+    }
+  }
+  // 删除所有多边形区域.
+  // Args:
+  //     None.
+  // Returns:
+  //     None.
+  void DeleteAllPolygonArea(void) {
+    polygon_areas_.clear();
+  }
+
   // 通用消息封装和发送函数.
   // Args:
   //     msg_id:  消息ID.
@@ -396,6 +521,7 @@ class JT808Client {
   Packager packager_;  // 通用JT808协议封装器.
   Parser parser_;  // 通用JT808协议解析器.
   ProtocolParameter parameter_;  // JT808协议参数.
+  PolygonAreaSet polygon_areas_;  // 多边形区域信息集.
 };
 
 }  // namespace libjt808

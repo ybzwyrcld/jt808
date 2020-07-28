@@ -311,6 +311,10 @@ void JT808Client::ThreadHandler(void) {
             parameter_.terminal_parameter_ids.assign(ids.begin(), ids.end());
           }
           PackagingAndSendMessage(kGetTerminalParametersResponse);
+        } else if (msg_id == kSetTerminalParameters) {
+          UpdatePolygonAreaByArea(parameter_.polygon_area);
+        } else if (msg_id == kDeletePolygonArea) {
+          DeletePolygonAreaByIDs(parameter_.polygon_area_id);
         }
       }
     } else if (ret == 0) {

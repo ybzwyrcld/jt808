@@ -282,6 +282,7 @@ void JT808Client::ThreadHandler(void) {
     heartbeat_intv = 60000;  // 60s.
   }
   std::vector<uint8_t> msg;
+  bool first_report = true;
   while (service_is_running_) {
     if ((ret = Recv(client_, buffer.get(), 4096, 0)) > 0) {
       // printf("Recv[%d]: %s\n", ret, buffer.get());
@@ -327,6 +328,18 @@ void JT808Client::ThreadHandler(void) {
         std::chrono::milliseconds>(end_tp - heartbeat_begin_tp).count();
     // 到达时间间隔或有立即上报的标志时进行位置信息汇报.
     if (report_time_lag >= report_intv || location_report_immediately_flag_) {
+      // 首次上报需要等到成功定位后再进行, 再此期间可以进行心跳包发送.
+      if (parameter_.location_info.status.bit.positioning == 0) {
+        if (first_report) {
+          if (heartbeat_time_lag >= heartbeat_intv) {
+            heartbeat_begin_tp = end_tp;
+            PackagingAndSendMessage(kTerminalHeartBeat);
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+          continue;
+        }
+      }
+      if (first_report) first_report = false;
       location_report_immediately_flag_ = 0;
       report_begin_tp = end_tp;
       heartbeat_begin_tp = end_tp;  // 进行位置汇报后重置心跳检测时间.
@@ -335,7 +348,7 @@ void JT808Client::ThreadHandler(void) {
       heartbeat_begin_tp = end_tp;
       PackagingAndSendMessage(kTerminalHeartBeat);
     } else {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   }
   // 线程终止.

@@ -69,9 +69,9 @@ namespace libjt808 {
 //       client.Stop();
 //     }
 //
-//     // 在其它位置调用client.UpdateLocation(args)来更新位置信息.
+//     // 在其它位置调用client.UpdateLocation(args)来更新位置基本信息.
 //     // 在其它位置调用client.SetAlarmBit(args)来更新报警位.
-//     // 在其它位置调用client.SetStatusBit(args)来更新报警位.
+//     // 在其它位置调用client.SetStatusBit(args)来更新状态位.
 class JT808Client {
  public:
   JT808Client();
@@ -174,7 +174,15 @@ class JT808Client {
   uint32_t const& status_bit(void) const {
     return parameter_.location_info.status.value;
   }
-  // 更新位置信息.
+  // 更新位置基本信息.
+  // Args:
+  //     info: 位置基本信息.
+  // Returns:
+  //     None.
+   void UpdateLocation(LocationBasicInformation const& info) {
+     parameter_.location_info = info;
+   }
+  // 更新位置基本信息.
   // Args:
   //     latitude:  纬度值, 单位为度(°).
   //     longitude:  经度值, 单位为度(°).
@@ -192,7 +200,6 @@ class JT808Client {
     parameter_.location_info.altitude = static_cast<uint16_t>(altitude);
     parameter_.location_info.speed = static_cast<uint16_t>(speed/10);
     parameter_.location_info.bearing = static_cast<uint16_t>(bearing);
-    parameter_.location_info.time.clear();
     parameter_.location_info.time.assign(timestamp.begin(), timestamp.end());
   }
   // 更新GNSS定位卫星数.

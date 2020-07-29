@@ -412,25 +412,20 @@ int JT808FrameParserInit(Parser* parser) {
           uint8_t end = msg_len + pos;
           pos += 28;
           std::vector<uint8_t> item_content;
-          while (pos < end) {
+          while (pos <= end-2) {  // 附加信息长度至少为1.
             if (in[pos] == kCustomInformationLength) break;
-            if (pos+1+in[pos+1] >= end) return -1;
-            item_content.clear();
-            item_content.assign(&(in[pos+2]), &(in[pos+2+in[pos+1]]));
-            extension_info.insert(std::pair<uint8_t, std::vector<uint8_t>>(
-                in[pos], item_content));
+            if (pos+1+in[pos+1] > end) return -1;  // 附加信息长度超出范围.
+            item_content.assign(in.begin()+pos+2, in.begin()+pos+2+in[pos+1]);
+            extension_info[in[pos]] = item_content;
             pos += 2 + in[pos+1];
           }
           if (pos < end) {  // 附加信息自定义项.
-            extension_info.insert(std::pair<uint8_t, std::vector<uint8_t>>(
-                in[pos], std::vector<uint8_t>{in[pos+1]}));
+            extension_info[in[pos]] = std::vector<uint8_t>{in[pos+1]};
             pos += 2;
-            while (pos < end-2) {
-              if (pos+1+in[pos+1] >= end) return -1;
-              item_content.clear();
-              item_content.assign(&(in[pos+2]), &(in[pos+2+in[pos+1]]));
-              extension_info.insert(std::pair<uint8_t, std::vector<uint8_t>>(
-                  in[pos], item_content));
+            while (pos <= end-2) {  // 附加信息长度至少为1.
+              if (pos+1+in[pos+1] > end) return -1;  // 附加信息长度超出范围.
+              item_content.assign(in.begin()+pos+2, in.begin()+pos+2+in[pos+1]);
+              extension_info[in[pos]] = item_content;
               pos += 2 + in[pos+1];
             }
           }
@@ -493,25 +488,20 @@ int JT808FrameParserInit(Parser* parser) {
           uint8_t end = msg_len + pos;
           pos += 28;
           std::vector<uint8_t> item_content;
-          while (pos < end-2) {
+          while (pos <= end-2) { // 附加信息长度至少为1.
             if (in[pos] == kCustomInformationLength) break;
-            if (pos+2+in[pos+1] >= end) return -1;
-            item_content.clear();
-            item_content.assign(&(in[pos+2]), &(in[pos+2+in[pos+1]]));
-            extension_info.insert(std::pair<uint8_t, std::vector<uint8_t>>(
-                in[pos], item_content));
+            if (pos+1+in[pos+1] > end) return -1;  // 附加信息长度超出范围.
+            item_content.assign(in.begin()+pos+2, in.begin()+pos+2+in[pos+1]);
+            extension_info[in[pos]] = item_content;
             pos += 2 + in[pos+1];
           }
-          if (pos < end-2) {  // 附加信息自定义项.
-            extension_info.insert(std::pair<uint8_t, std::vector<uint8_t>>(
-                in[pos], std::vector<uint8_t>{in[pos+1]}));
+          if (pos < end) {  // 附加信息自定义项.
+            extension_info[in[pos]] = std::vector<uint8_t>{in[pos+1]};
             pos += 2;
-            while (pos < end-2) {
-              if (pos+2+in[pos+1] >= end) return -1;
-              item_content.clear();
-              item_content.assign(&(in[pos+2]), &(in[pos+2+in[pos+1]]));
-              extension_info.insert(std::pair<uint8_t, std::vector<uint8_t>>(
-                  in[pos], item_content));
+            while (pos <= end-2) {  // 附加信息长度至少为1.
+              if (pos+1+in[pos+1] > end) return -1;  // 附加信息长度超出范围.
+              item_content.assign(in.begin()+pos+2, in.begin()+pos+2+in[pos+1]);
+              extension_info[in[pos]] = item_content;
               pos += 2 + in[pos+1];
             }
           }

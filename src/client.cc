@@ -83,6 +83,7 @@ void JT808Client::Init(void) {
   location_report_immediately_flag_ = 0;  // 立即上报标志清零.
   parameter_.location_info.alarm.value = 0;
   parameter_.location_info.status.value = 0;
+  parameter_.location_info.time = "700101000000"; // 1970-01-01-00-00-00.
   // 通信流程控制.
   is_connected_.store(false);
   is_authenticated_.store(false);

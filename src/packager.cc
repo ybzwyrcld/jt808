@@ -455,7 +455,7 @@ int JT808FramePackagerInit(Packager* packager) {
         }
         if (location_extension_custom_len > 0) {
           (*out)[pos] = location_extension_custom_len;
-          msg_len += location_extension_custom_len;
+          // msg_len += location_extension_custom_len;
         }
         return msg_len;
       }
@@ -527,7 +527,7 @@ int JT808FramePackagerInit(Packager* packager) {
         }
         if (location_extension_custom_len > 0) {
           (*out)[pos] = location_extension_custom_len;
-          msg_len += location_extension_custom_len;
+          // msg_len += location_extension_custom_len;
         }
         return msg_len;
       }

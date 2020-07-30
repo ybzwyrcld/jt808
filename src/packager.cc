@@ -433,30 +433,36 @@ int JT808FramePackagerInit(Packager* packager) {
         // UTC时间(BCD-8421码).
         StringToBcd(basic_info.time, &bcd);
         for (auto const& uch : bcd)  out->push_back(uch);
-        uint8_t location_extension_custom_len = 0;
-        size_t pos = 0;
+        std::vector<uint8_t> extension_custom;
         // 位置附加信息项.
         for (auto const& item : extension_info) {
-          // 若后续信息长度项不存在, 则不附加后续自定义信息.
-          if ((item.first > kCustomInformationLength) && (pos == 0)) continue;
-          out->push_back(item.first);
-          if (item.first != kCustomInformationLength) {
+          if (item.first <= kCustomInformationLength) {
+            out->push_back(item.first);
+            if (item.first == kCustomInformationLength) continue;
             out->push_back(item.second.size());
             msg_len += 2 + item.second.size();
-          } else {  // 自定义附加信息长度占位.
-            pos = out->size();
-            msg_len += 1;
-          }
-          for (auto const& uch : item.second) out->push_back(uch);
-          // 统计自定义附加信息长度.
-          if (item.first > kCustomInformationLength) {
-            location_extension_custom_len += 2 + item.second.size();
+            for (auto const& uch : item.second) out->push_back(uch);
+          } else if (item.first > kCustomInformationLength) {
+            extension_custom.push_back(item.first);
+            extension_custom.push_back(item.second.size());
+            for (auto const& uch : item.second) extension_custom.push_back(uch);
           }
         }
-        if (location_extension_custom_len > 0) {
-          (*out)[pos] = location_extension_custom_len;
-          // msg_len += location_extension_custom_len;
+        auto const& length = extension_custom.size();
+        if (length >= 256) {
+          out->push_back(2);
+          out->push_back(length%65536/256);
+          out->push_back(length%256);
+          msg_len += 4;
+        } else if (length > 0) {
+          out->push_back(1);
+          out->push_back(length%256);
+          msg_len += 3;
+        } else {  // 没有后续自定义信息.
+          out->pop_back();
         }
+        for (auto const& uch : extension_custom) out->push_back(uch);
+        msg_len += length;
         return msg_len;
       }
   ));
@@ -507,28 +513,36 @@ int JT808FramePackagerInit(Packager* packager) {
         // UTC时间(BCD-8421码).
         StringToBcd(basic_info.time, &bcd);
         for (auto const& uch : bcd)  out->push_back(uch);
-        uint8_t location_extension_custom_len = 0;
-        size_t pos = 0;
+        std::vector<uint8_t> extension_custom;
         // 位置附加信息项.
         for (auto const& item : extension_info) {
-          out->push_back(item.first);
-          if (item.first != kCustomInformationLength) {
+          if (item.first <= kCustomInformationLength) {
+            out->push_back(item.first);
+            if (item.first == kCustomInformationLength) continue;
             out->push_back(item.second.size());
             msg_len += 2 + item.second.size();
-          } else {  // 自定义附加信息长度占位.
-            pos = out->size();
-            msg_len += 1;
-          }
-          for (auto const& uch : item.second) out->push_back(uch);
-          // 统计自定义附加信息长度.
-          if (item.first > kCustomInformationLength) {
-            location_extension_custom_len += 2 + item.second.size();
+            for (auto const& uch : item.second) out->push_back(uch);
+          } else if (item.first > kCustomInformationLength) {
+            extension_custom.push_back(item.first);
+            extension_custom.push_back(item.second.size());
+            for (auto const& uch : item.second) extension_custom.push_back(uch);
           }
         }
-        if (location_extension_custom_len > 0) {
-          (*out)[pos] = location_extension_custom_len;
-          // msg_len += location_extension_custom_len;
+        auto const& length = extension_custom.size();
+        if (length >= 256) {
+          out->push_back(2);
+          out->push_back(length%65536/256);
+          out->push_back(length%256);
+          msg_len += 4;
+        } else if (length > 0) {
+          out->push_back(1);
+          out->push_back(length%256);
+          msg_len += 3;
+        } else {  // 没有后续自定义信息.
+          out->pop_back();
         }
+        for (auto const& uch : extension_custom) out->push_back(uch);
+        msg_len += length;
         return msg_len;
       }
   ));

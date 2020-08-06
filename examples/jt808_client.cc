@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
     client.UpdateGNSSSatelliteNumber(11);
     // 自定义位置信息附加项.
     // client.UpdateGNSSPositioningSolutionStatus(2);  // 伪距差分解.
-    client.SetJT808Service("127.0.0.1", 8888, "13595279527", 10);
+    client.SetJT808Service("127.0.0.1", 8888, "13595279527", 10, 1);
     client.Run();
     std::this_thread::sleep_for(std::chrono::seconds(1));
     while (client.service_is_running()) {

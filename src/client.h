@@ -253,88 +253,74 @@ class JT808Client {
         parameter_.terminal_parameters, interval);
   }
   // 以下为自定义终端参数, 非相关设备请忽略.
-  // 获取开机启动模块配置.
-  int GetStartupModel(uint8_t* gnss_en, uint8_t* cdradio_en,
-      uint8_t* ntrip_cors_en, uint8_t* ntrip_serv_en,
-      uint8_t* jt808_serv_en) const {
-    return ParseTerminalParameterStartupModel(parameter_.terminal_parameters,
-        gnss_en, cdradio_en, ntrip_cors_en, ntrip_serv_en, jt808_serv_en);
-  }
-  // 设置开机启动模块.
-  int SetStartupModel(uint8_t const& gnss_en, uint8_t const& cdradio_en,
-      uint8_t const& ntrip_cors_en, uint8_t const& ntrip_serv_en,
-      uint8_t const& jt808_serv_en) {
-    return PackagingTerminalParameterStartupModel(
-      gnss_en, cdradio_en, ntrip_cors_en, ntrip_serv_en, jt808_serv_en,
-      &parameter_.terminal_parameters);
-  }
   // 获取GNSS模块输出语句配置.
-  int GetGNSSModelLog(uint8_t* loggga_en,
-      uint8_t* logrmc_en, uint8_t* logatt_en) const {
+  int GetGNSSModelLog(uint8_t* loggga_en, uint8_t* logrmc_en,
+                      uint8_t* logatt_en, uint8_t* startup) const {
     return ParseTerminalParameterGNSSLog(
-        parameter_.terminal_parameters, loggga_en, logrmc_en, logatt_en);
+        parameter_.terminal_parameters, loggga_en, logrmc_en, logatt_en, startup);
   }
   // 设置GNSS模块输出语句.
-  int SetGNSSModelLog(uint8_t const& loggga_en,
-      uint8_t const& logrmc_en, uint8_t const& logatt_en) {
+  int SetGNSSModelLog(uint8_t const& loggga_en, uint8_t const& logrmc_en,
+                      uint8_t const& logatt_en, uint8_t const& startup) {
     return PackagingTerminalParameterGNSSLog(
-        loggga_en, logrmc_en, logatt_en,
+        loggga_en, logrmc_en, logatt_en, startup,
         &parameter_.terminal_parameters);
   }
   // 获取CDRadio模块配置.
   int GetCDRadio(uint32_t* bdrt, uint16_t* freq,
-                 uint8_t* recv_mode, uint8_t* form_code) const {
+                 uint8_t* recv_mode, uint8_t* form_code, uint8_t* startup) const {
     return ParseTerminalParameterCDRadio(
-        parameter_.terminal_parameters, bdrt, freq, recv_mode, form_code);
+        parameter_.terminal_parameters, bdrt, freq, recv_mode, form_code, startup);
   }
   // 设置CDRadio模块.
   int SetCDRadio(uint32_t const& bdrt, uint16_t const& freq,
-                 uint8_t const& recv_mode, uint8_t const& form_code) {
+                 uint8_t const& recv_mode, uint8_t const& form_code,
+                 uint8_t const& startup) {
     return PackagingTerminalParameterCDRadio(
-        bdrt, freq, recv_mode, form_code,
+        bdrt, freq, recv_mode, form_code, startup,
         &parameter_.terminal_parameters);
   }
   // 获取Ntrip网络差分配置.
   int GetNtripCors(std::string* ip, uint16_t* port,
       std::string* user, std::string* pwd,
-      std::string* mp, uint8_t* intv) const {
+      std::string* mp, uint8_t* intv, uint8_t* startup) const {
     return ParseTerminalParameterNtripCors(parameter_.terminal_parameters,
-        ip, port, user, pwd, mp, intv);
+        ip, port, user, pwd, mp, intv, startup);
   }
   // 设置Ntrip网络差分.
   int SetNtripCors(std::string const& ip, uint16_t const& port,
       std::string const& user, std::string const& pwd,
-      std::string const& mp, uint8_t const& intv) {
+      std::string const& mp, uint8_t const& intv, uint8_t const& startup) {
     return PackagingTerminalParameterNtripCors(
-        ip, port, user, pwd, mp, intv,
+        ip, port, user, pwd, mp, intv, startup,
         &parameter_.terminal_parameters);
   }
   // 获取Ntrip后台配置.
   int GetNtripService(std::string* ip, uint16_t* port,
       std::string* user, std::string* pwd,
-      std::string* mp, uint8_t* intv) const {
+      std::string* mp, uint8_t* intv, uint8_t* startup) const {
     return ParseTerminalParameterNtripService(parameter_.terminal_parameters,
-        ip, port, user, pwd, mp, intv);
+        ip, port, user, pwd, mp, intv, startup);
   }
   // 设置Ntrip后台.
   int SetNtripService(std::string const& ip, uint16_t const& port,
       std::string const& user, std::string const& pwd,
-      std::string const& mp, uint8_t const& intv) {
+      std::string const& mp, uint8_t const& intv, uint8_t const& startup) {
     return PackagingTerminalParameterNtripService(
-        ip, port, user, pwd, mp, intv,
+        ip, port, user, pwd, mp, intv, startup,
         &parameter_.terminal_parameters);
   }
   // 获取JT808后台配置.
   int GetJT808Service(std::string* ip, uint16_t* port,
-      std::string* phone,  uint8_t* intv) const {
+      std::string* phone,  uint8_t* intv, uint8_t* startup) const {
     return ParseTerminalParameterJT808Service(parameter_.terminal_parameters,
-        ip, port, phone, intv);
+        ip, port, phone, intv, startup);
   }
   // 设置JT808后台.
   int SetJT808Service(std::string const& ip, uint16_t const& port,
-      std::string const& phone, uint8_t const& intv) {
+      std::string const& phone, uint8_t const& intv, uint8_t const& startup) {
     return PackagingTerminalParameterJT808Service(
-        ip, port, phone, intv,
+        ip, port, phone, intv, startup,
         &parameter_.terminal_parameters);
   }
   // 终端参数回调函数.

@@ -73,19 +73,19 @@ inline std::string ToHexString(T const& t) {
 
 // 单字节终端参数.
 const std::vector<uint32_t> kByteTypeTerminalParameters = {
-  kGNSSModelEnable, kCDRadioModelEnable, kNtripCorsEnable,
-  kNtripServiceEnable, kJT808ServiceEnable,
-  kGNSSLogGGA, kGNSSLogRMC, kGNSSLogATT,
-  kCDRaiodReceiceMode, kCDRaiodFormCode, kNtripCorsGGAReportInterval,
-  kNtripServiceGGAReportInterval, kJT808ServiceReportInterval,
+  kGNSSLogGGA, kGNSSLogRMC, kGNSSLogATT, kGNSSStartup,
+  kCDRadioReceiceMode, kCDRadioFormCode, kCDRadioStartup,
+  kNtripCorsGGAReportInterval, kNtripCorsStartup, 
+  kNtripServiceGGAReportInterval, kNtripServiceStartup,
+  kJT808ServiceReportInterval, kJT808ServiceStartup,
 };
 // 双字节终端参数.
 const std::vector<uint32_t> kWordTypeTerminalParameters = {
-  kCDRaiodWorkFreq, kNtripCorsPort, kNtripServicePort, kJT808ServicePort,
+  kCDRadioWorkFreq, kNtripCorsPort, kNtripServicePort, kJT808ServicePort,
 };
 // 四字节终端参数.
 const std::vector<uint32_t> kDWordTypeTerminalParameters = {
-  kTerminalHeartBeatInterval, kCDRaiodServiceBDRT,
+  kTerminalHeartBeatInterval, kCDRadioServiceBDRT,
 };
 // 字符串终端参数.
 const std::vector<uint32_t> kStringTypeTerminalParameters = {

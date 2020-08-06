@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
   std::vector<uint8_t> out;
   // 预设几个终端参数.
   libjt808::PackagingTerminalParameterNtripCors(
-      "192.168.3.111", 8002, "user01", "123456", "RTCM23_GPS", 10,
+      "192.168.3.111", 8002, "user01", "123456", "RTCM23_GPS", 10, 1,
       &svr_para.terminal_parameters);
   std::string ip;
   uint16_t port;
@@ -73,17 +73,19 @@ int main(int argc, char **argv) {
   std::string pwd;
   std::string mp;
   uint8_t intv = 0;
+  uint8_t start_up = 0;
   // 输出配置的终端参数.
   if (libjt808::ParseTerminalParameterNtripCors(
       svr_para.terminal_parameters,
-      &ip, &port, &usr, &pwd, &mp, &intv) == 0) {
+      &ip, &port, &usr, &pwd, &mp, &intv, &start_up) == 0) {
     cout << "Set para: " <<
             ip << ", " <<
             port << ", " <<
             usr << ", " <<
             pwd << ", "
             << mp << ", " <<
-            std::to_string(intv) << "\n";
+            std::to_string(intv) << ", " <<
+            std::to_string(start_up) << "\n";
   }
   // 平台生成设置终端参数消息.
   svr_para.msg_head.msg_id = libjt808::kSetTerminalParameters;
@@ -148,14 +150,15 @@ int main(int argc, char **argv) {
   // 输出解析的终端参数.
   if (libjt808::ParseTerminalParameterNtripCors(
       svr_para.parse.terminal_parameters,
-      &ip, &port, &usr, &pwd, &mp, &intv) == 0) {
+      &ip, &port, &usr, &pwd, &mp, &intv, &start_up) == 0) {
     cout << "Get all para: " <<
             ip << ", " <<
             port << ", " <<
             usr << ", " <<
             pwd << ", " << mp
             << ", " <<
-            std::to_string(intv) << "\n";
+            std::to_string(intv) << ", " <<
+            std::to_string(start_up) << "\n";
   }
   // 平台生成查询指定终端参数消息.
   svr_para.terminal_parameter_ids.clear();
@@ -205,14 +208,15 @@ int main(int argc, char **argv) {
   // 输出解析的终端参数.
   if (libjt808::ParseTerminalParameterNtripCors(
       svr_para.parse.terminal_parameters,
-      &ip, &port, &usr, &pwd, &mp, &intv) == 0) {
+      &ip, &port, &usr, &pwd, &mp, &intv, &start_up) == 0) {
     cout << "Get special para: " <<
             ip << ", " <<
             port << ", " <<
             usr << ", " <<
             pwd << ", " <<
             mp << ", " <<
-            std::to_string(intv) << "\n";
+            std::to_string(intv) << ", " <<
+            std::to_string(start_up) << "\n";
   }
   return 0;
 }

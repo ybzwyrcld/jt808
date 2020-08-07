@@ -349,6 +349,25 @@ class JT808Client {
         ip, port, phone, intv, startup,
         &parameter_.terminal_parameters);
   }
+  // 获取所有终端参数.
+  int GetTerminalParameters(
+      std::map<uint32_t, std::vector<uint8_t>>* para) const {
+    if (para == nullptr) return -1;
+    para->clear();
+    para->insert(parameter_.terminal_parameters.begin(),
+                 parameter_.terminal_parameters.end());
+    return 0;
+  }
+  std::map<uint32_t, std::vector<uint8_t>> const&
+  GetTerminalParameters(void) const {
+    return parameter_.terminal_parameters;
+  }
+  // 设置所有终端参数.
+  void SetTerminalParameters(
+      std::map<uint32_t, std::vector<uint8_t>> const& para){
+    parameter_.terminal_parameters.clear();
+    parameter_.terminal_parameters.insert(para.begin(), para.end());
+  }
   // 终端参数回调函数.
   using TerminalParameterCallback = std::function<void (void/* 参数待定. */)>;
   // 设置平台配置修改终端参数时的回调函数.

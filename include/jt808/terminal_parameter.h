@@ -403,7 +403,7 @@ inline int PackagingTerminalParameterTerminalHeartBeatInterval(
 //    intv:  保存解析的终端心跳时间间隔.
 // Returns:
 //    成功返回0, 失败返回-1.
-inline int PackagingTerminalParameterTerminalHeartBeatInterval(
+inline int ParseTerminalParameterTerminalHeartBeatInterval(
     std::map<uint32_t, std::vector<uint8_t>> const& items,
     uint32_t* intv) {
   return GetTerminalParameter(items, kTerminalHeartBeatInterval, intv);

@@ -214,7 +214,6 @@ class JT808Client {
     parameter_.location_info.altitude = static_cast<uint16_t>(altitude);
     parameter_.location_info.speed = static_cast<uint16_t>(speed/10);
     parameter_.location_info.bearing = static_cast<uint16_t>(bearing);
-    parameter_.location_info.time.clear();
     parameter_.location_info.time.assign(timestamp.begin(), timestamp.end());
   }
   // 更新GNSS定位卫星数.
@@ -278,8 +277,7 @@ class JT808Client {
   // 获取GNSS模块输出语句配置.
   int GetGNSSModelLog(uint8_t* loggga_en, uint8_t* logrmc_en,
                       uint8_t* logatt_en, uint8_t* startup) const {
-    return ParseTerminalParameterGNSSLog(
-        parameter_.terminal_parameters,
+    return ParseTerminalParameterGNSSLog(parameter_.terminal_parameters,
         loggga_en, logrmc_en, logatt_en, startup);
   }
   // 设置GNSS模块输出语句.
@@ -293,8 +291,7 @@ class JT808Client {
   int GetCDRadio(uint32_t* bdrt, uint16_t* freq,
                  uint8_t* recv_mode, uint8_t* form_code,
                  uint8_t* startup) const {
-    return ParseTerminalParameterCDRadio(
-        parameter_.terminal_parameters,
+    return ParseTerminalParameterCDRadio(parameter_.terminal_parameters,
         bdrt, freq, recv_mode, form_code, startup);
   }
   // 设置CDRadio模块.
@@ -307,8 +304,8 @@ class JT808Client {
   }
   // 获取Ntrip网络差分配置.
   int GetNtripCors(std::string* ip, uint16_t* port,
-      std::string* user, std::string* pwd,
-      std::string* mp, uint8_t* intv, uint8_t* startup) const {
+                   std::string* user, std::string* pwd,
+                   std::string* mp, uint8_t* intv, uint8_t* startup) const {
     return ParseTerminalParameterNtripCors(parameter_.terminal_parameters,
         ip, port, user, pwd, mp, intv, startup);
   }
@@ -324,8 +321,7 @@ class JT808Client {
   // 获取Ntrip后台配置.
   int GetNtripService(std::string* ip, uint16_t* port,
                       std::string* user, std::string* pwd,
-                      std::string* mp, uint8_t* intv,
-                      uint8_t* startup) const {
+                      std::string* mp, uint8_t* intv, uint8_t* startup) const {
     return ParseTerminalParameterNtripService(parameter_.terminal_parameters,
         ip, port, user, pwd, mp, intv, startup);
   }
@@ -354,9 +350,9 @@ class JT808Client {
         &parameter_.terminal_parameters);
   }
   // 终端参数回调函数.
-  using TerminalParameterCallback = std::function<void (/* 参数待定. */)>;
-  // 设置终端参数回调函数.
-  void OnSetTerminalParamete(TerminalParameterCallback const& callback) {
+  using TerminalParameterCallback = std::function<void (void/* 参数待定. */)>;
+  // 设置平台配置修改终端参数时的回调函数.
+  void OnTerminalParameteUpdated(TerminalParameterCallback const& callback) {
     terminal_parameter_callback_ = callback;
   }
 
@@ -502,6 +498,12 @@ class JT808Client {
   void DeleteAllPolygonArea(void) {
     polygon_areas_.clear();
   }
+  // 多边形区域回调函数.
+  using PolygonAreaCallback = std::function<void (void/* 参数待定. */)>;
+  // 设置平台配置修改多边形区域信息时的回调函数.
+  void OnPolygonAreaUpdated(PolygonAreaCallback const& callback) {
+    polygon_area_callback_ = callback;
+  }
 
   // 通用消息封装和发送函数.
   // Args:
@@ -532,8 +534,9 @@ class JT808Client {
   uint16_t location_report_immediately_flag_;  // 立即进行位置上报标志.
   std::thread service_thread_;  // 服务线程.
   std::atomic_bool service_is_running_;  // 服务线程运行标志.
-  TerminalParameterCallback terminal_parameter_callback_;  // 设置终端参数回调函数.
+  TerminalParameterCallback terminal_parameter_callback_;  // 修改终端参数回调函数.
   UpgradeCallback upgrade_callback_;  // 下发终端升级包回调函数.
+  PolygonAreaCallback polygon_area_callback_;  // 修改多边形区域回调函数.
   Packager packager_;  // 通用JT808协议封装器.
   Parser parser_;  // 通用JT808协议解析器.
   ProtocolParameter parameter_;  // JT808协议参数.

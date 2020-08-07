@@ -247,6 +247,13 @@ class JT808Client {
       parameter_.location_extension.insert(
           std::make_pair(kPositioningStatus, std::vector<uint8_t>{fix}));
     }
+    // 检查后续自定义信息长度项是否存在.
+    auto const& iter =
+        parameter_.location_extension.find(kCustomInformationLength);
+    if (iter == parameter_.location_extension.end()) {
+      parameter_.location_extension.insert(
+        std::make_pair(kCustomInformationLength, std::vector<uint8_t>{0}));
+    }
   }
   // 设置位置上报时间间隔.
   void set_location_report_inteval(uint8_t const& intv) {
@@ -270,8 +277,8 @@ class JT808Client {
   // 获取GNSS模块输出语句配置.
   int GetGNSSModelLog(uint8_t* loggga_en, uint8_t* logrmc_en,
                       uint8_t* logatt_en, uint8_t* startup) const {
-    return ParseTerminalParameterGNSSLog(
-        parameter_.terminal_parameters, loggga_en, logrmc_en, logatt_en, startup);
+    return ParseTerminalParameterGNSSLog(parameter_.terminal_parameters,
+        loggga_en, logrmc_en, logatt_en, startup);
   }
   // 设置GNSS模块输出语句.
   int SetGNSSModelLog(uint8_t const& loggga_en, uint8_t const& logrmc_en,
@@ -282,9 +289,10 @@ class JT808Client {
   }
   // 获取CDRadio模块配置.
   int GetCDRadio(uint32_t* bdrt, uint16_t* freq,
-                 uint8_t* recv_mode, uint8_t* form_code, uint8_t* startup) const {
-    return ParseTerminalParameterCDRadio(
-        parameter_.terminal_parameters, bdrt, freq, recv_mode, form_code, startup);
+                 uint8_t* recv_mode, uint8_t* form_code,
+                 uint8_t* startup) const {
+    return ParseTerminalParameterCDRadio(parameter_.terminal_parameters,
+        bdrt, freq, recv_mode, form_code, startup);
   }
   // 设置CDRadio模块.
   int SetCDRadio(uint32_t const& bdrt, uint16_t const& freq,
@@ -296,51 +304,55 @@ class JT808Client {
   }
   // 获取Ntrip网络差分配置.
   int GetNtripCors(std::string* ip, uint16_t* port,
-      std::string* user, std::string* pwd,
-      std::string* mp, uint8_t* intv, uint8_t* startup) const {
+                   std::string* user, std::string* pwd,
+                   std::string* mp, uint8_t* intv, uint8_t* startup) const {
     return ParseTerminalParameterNtripCors(parameter_.terminal_parameters,
         ip, port, user, pwd, mp, intv, startup);
   }
   // 设置Ntrip网络差分.
   int SetNtripCors(std::string const& ip, uint16_t const& port,
-      std::string const& user, std::string const& pwd,
-      std::string const& mp, uint8_t const& intv, uint8_t const& startup) {
+                   std::string const& user, std::string const& pwd,
+                   std::string const& mp, uint8_t const& intv,
+                   uint8_t const& startup) {
     return PackagingTerminalParameterNtripCors(
         ip, port, user, pwd, mp, intv, startup,
         &parameter_.terminal_parameters);
   }
   // 获取Ntrip后台配置.
   int GetNtripService(std::string* ip, uint16_t* port,
-      std::string* user, std::string* pwd,
-      std::string* mp, uint8_t* intv, uint8_t* startup) const {
+                      std::string* user, std::string* pwd,
+                      std::string* mp, uint8_t* intv, uint8_t* startup) const {
     return ParseTerminalParameterNtripService(parameter_.terminal_parameters,
         ip, port, user, pwd, mp, intv, startup);
   }
   // 设置Ntrip后台.
   int SetNtripService(std::string const& ip, uint16_t const& port,
-      std::string const& user, std::string const& pwd,
-      std::string const& mp, uint8_t const& intv, uint8_t const& startup) {
+                      std::string const& user, std::string const& pwd,
+                      std::string const& mp, uint8_t const& intv,
+                      uint8_t const& startup) {
     return PackagingTerminalParameterNtripService(
         ip, port, user, pwd, mp, intv, startup,
         &parameter_.terminal_parameters);
   }
   // 获取JT808后台配置.
   int GetJT808Service(std::string* ip, uint16_t* port,
-      std::string* phone,  uint8_t* intv, uint8_t* startup) const {
+                      std::string* phone,  uint8_t* intv,
+                      uint8_t* startup) const {
     return ParseTerminalParameterJT808Service(parameter_.terminal_parameters,
         ip, port, phone, intv, startup);
   }
   // 设置JT808后台.
   int SetJT808Service(std::string const& ip, uint16_t const& port,
-      std::string const& phone, uint8_t const& intv, uint8_t const& startup) {
+                      std::string const& phone, uint8_t const& intv,
+                      uint8_t const& startup) {
     return PackagingTerminalParameterJT808Service(
         ip, port, phone, intv, startup,
         &parameter_.terminal_parameters);
   }
   // 终端参数回调函数.
-  using TerminalParameterCallback = std::function<void (/* 参数待定. */)>;
-  // 设置终端参数回调函数.
-  void OnSetTerminalParamete(TerminalParameterCallback const& callback) {
+  using TerminalParameterCallback = std::function<void (void/* 参数待定. */)>;
+  // 设置平台配置修改终端参数时的回调函数.
+  void OnTerminalParameteUpdated(TerminalParameterCallback const& callback) {
     terminal_parameter_callback_ = callback;
   }
 
@@ -464,11 +476,16 @@ class JT808Client {
     if (it != polygon_areas_.end()) polygon_areas_.erase(it);
   }
   // 删除指定ID多边形区域.
+  // 区域ID集为空时, 删除所有多边形区域信息.
   // Args:
   //     ids:  区域ID集.
   // Returns:
   //     None.
   void DeletePolygonAreaByIDs(std::vector<uint32_t> const& ids) {
+     if (ids.empty()) {
+      DeleteAllPolygonArea();
+      return;
+    }
     for (auto const& id : ids) {
       DeletePolygonAreaByID(id);
     }
@@ -480,6 +497,12 @@ class JT808Client {
   //     None.
   void DeleteAllPolygonArea(void) {
     polygon_areas_.clear();
+  }
+  // 多边形区域回调函数.
+  using PolygonAreaCallback = std::function<void (void/* 参数待定. */)>;
+  // 设置平台配置修改多边形区域时的回调函数.
+  void OnPolygonAreaUpdated(PolygonAreaCallback const& callback) {
+    polygon_area_callback_ = callback;
   }
 
   // 通用消息封装和发送函数.
@@ -511,8 +534,9 @@ class JT808Client {
   uint16_t location_report_immediately_flag_;  // 立即进行位置上报标志.
   std::thread service_thread_;  // 服务线程.
   std::atomic_bool service_is_running_;  // 服务线程运行标志.
-  TerminalParameterCallback terminal_parameter_callback_;  // 设置终端参数回调函数.
+  TerminalParameterCallback terminal_parameter_callback_;  // 修改终端参数回调函数.
   UpgradeCallback upgrade_callback_;  // 下发终端升级包回调函数.
+  PolygonAreaCallback polygon_area_callback_;  // 修改多边形区域回调函数.
   Packager packager_;  // 通用JT808协议封装器.
   Parser parser_;  // 通用JT808协议解析器.
   ProtocolParameter parameter_;  // JT808协议参数.

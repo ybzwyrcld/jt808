@@ -75,9 +75,10 @@ void JT808Client::Init(void) {
   parameter_.msg_head.msg_flow_num = 0;  // 消息流水号.
   parameter_.register_info = kRegisterInfo;  // 终端注册信息.
   // 设置默认回调函数, 防止外部未设置时调用出错.
-  terminal_parameter_callback_ = [] () -> void { return; };
+  terminal_parameter_callback_ = [] (void) -> void { return; };
   upgrade_callback_ = [] (uint8_t const& type,
       char const* data, int const& size) -> void { return; };
+  polygon_area_callback_ = [] (void) -> void { return; };
   // 位置上报相关.
   location_report_inteval_ = 10;  // 10s位置上报时间间隔.
   location_report_immediately_flag_ = 0;  // 立即上报标志清零.
@@ -312,10 +313,20 @@ void JT808Client::ThreadHandler(void) {
             parameter_.terminal_parameter_ids.assign(ids.begin(), ids.end());
           }
           PackagingAndSendMessage(kGetTerminalParametersResponse);
-        } else if (msg_id == kSetTerminalParameters) {
+        } else if (msg_id == kSetPolygonArea) {  // 设置矩形区域.
           UpdatePolygonAreaByArea(parameter_.polygon_area);
-        } else if (msg_id == kDeletePolygonArea) {
+          // 调用回调函数.
+          polygon_area_callback_();
+        } else if (msg_id == kDeletePolygonArea) {  // 删除矩形区域.
           DeletePolygonAreaByIDs(parameter_.polygon_area_id);
+          // 调用回调函数.
+          polygon_area_callback_();
+        } else if (msg_id == kPlatformGeneralResponse) {
+          // 接收到平台应答后, 清除进出区域报警标志位.
+          if ((parameter_.parse.respone_msg_id == kLocationReport) &&
+              (parameter_.location_info.alarm.bit.in_out_area == 1)) {
+            parameter_.location_info.alarm.bit.in_out_area = 0;
+          }
         }
       }
     } else if (ret == 0) {

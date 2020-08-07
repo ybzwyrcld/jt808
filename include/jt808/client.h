@@ -270,8 +270,13 @@ class JT808Client {
   //
   // 获取终端心跳时间间隔.
   int GetTerminalHeartbeatInterval(uint32_t* interval) const {
-    return PackagingTerminalParameterTerminalHeartBeatInterval(
+    return ParseTerminalParameterTerminalHeartBeatInterval(
         parameter_.terminal_parameters, interval);
+  }
+  // 设置终端心跳时间间隔.
+  int SetTerminalHeartbeatInterval(uint32_t const& interval) {
+    return PackagingTerminalParameterTerminalHeartBeatInterval(
+        interval, &parameter_.terminal_parameters);
   }
   // 以下为自定义终端参数, 非相关设备请忽略.
   // 获取GNSS模块输出语句配置.

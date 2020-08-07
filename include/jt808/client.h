@@ -165,6 +165,20 @@ class JT808Client {
     parameter_.location_info.alarm.bit.in_out_area = in;
     location_report_immediately_flag_ |= kAlarmOccurred;
   }
+  // 设置进出区域报警位置信息附加项.
+  // Args:
+  //     item:  进出区域附加项值, 类型(BYTE)+区域ID(DWORD)+方向(BYTE).
+  // Returns:
+  //     None.
+  void SetInOutAreaAlarmExtension(std::vector<uint8_t> const& item) {
+    auto const& it = parameter_.location_extension.find(kAccessAreaAlarm);
+    if (it != parameter_.location_extension.end()) {
+      it->second.assign(item.begin(), item.end());
+    } else {
+      parameter_.location_extension.insert(
+          std::make_pair(kAccessAreaAlarm, item));
+    }
+  }
   // 设置状态位.
   void SetStatusBit(uint32_t const& status) {
     parameter_.location_info.status.value = status;

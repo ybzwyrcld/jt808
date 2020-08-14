@@ -33,6 +33,46 @@
 #include "jt808/client.h"
 
 
+using LocationExtensions = std::map<uint8_t, std::vector<uint8_t>>;
+
+namespace {
+
+constexpr uint8_t kPositioningFixStatus = 0xEE;
+
+int UpdateGNSSSatelliteNumber( uint8_t const& num, LocationExtensions* items) {
+  if (items == nullptr) return -1;
+  auto const& it = items->find(libjt808::kGnssSatellites);
+  if (it != items->end()) {
+    it->second.clear();
+    it->second.push_back(num);
+  } else {
+   items->insert(
+      std::make_pair(libjt808::kGnssSatellites, std::vector<uint8_t>{num}));
+  }
+  return 0;
+}
+
+void UpdateGNSSPositioningSolutionStatus(
+    uint8_t const& fix, LocationExtensions* items) {
+  auto const& it = items->find(kPositioningFixStatus);
+  if (it != items->end()) {
+    it->second.clear();
+    it->second.push_back(fix);
+  } else {
+    items->insert(
+        std::make_pair(kPositioningFixStatus, std::vector<uint8_t>{fix}));
+  }
+  // 检查后续自定义信息长度项是否存在.
+  auto const& iter =
+      items->find(libjt808::kCustomInformationLength);
+  if (iter == items->end()) {
+   items->insert(
+      std::make_pair(libjt808::kCustomInformationLength, std::vector<uint8_t>{0}));
+  }
+}
+
+}  // namespace
+
 int main(int argc, char **argv) {
   libjt808::JT808Client client;
   client.Init();
@@ -43,10 +83,9 @@ int main(int argc, char **argv) {
     libjt808::StatusBit status_bit {};
     status_bit.bit.positioning = 1;  // 已成功定位.
     client.SetStatusBit(status_bit.value);
-    client.UpdateGNSSSatelliteNumber(11);
-    // 自定义位置信息附加项.
-    // client.UpdateGNSSPositioningSolutionStatus(2);  // 伪距差分解.
-    client.SetJT808Service("127.0.0.1", 8888, "13595279527", 10, 1);
+    auto& location_extensions = client.GetLocationExtension();
+    UpdateGNSSSatelliteNumber(11, &location_extensions);
+    UpdateGNSSPositioningSolutionStatus(2, &location_extensions);
     client.Run();
     std::this_thread::sleep_for(std::chrono::seconds(1));
     while (client.service_is_running()) {

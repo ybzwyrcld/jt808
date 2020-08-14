@@ -35,6 +35,7 @@
 
 #include "jt808/area_route.h"
 #include "jt808/location_report.h"
+#include "jt808/terminal_parameter.h"
 
 
 namespace libjt808 {
@@ -237,13 +238,13 @@ struct ProtocolParameter {
   // 平台随机生成鉴权码.
   std::vector<uint8_t> authentication_code;
   // 设置终端参数项.
-  std::map<uint32_t, std::vector<uint8_t>> terminal_parameters;
+  TerminalParameters terminal_parameters;
   // 查询终端参数ID列表.
   std::vector<uint32_t> terminal_parameter_ids;
   // 位置上报时填充位置基本信息, 必须项.
   LocationBasicInformation location_info;
   // 位置上报时填充位置附加信息, 可选项.
-  std::map<uint8_t, std::vector<uint8_t>> location_extension;
+  LocationExtensions location_extension;
   // 临时位置跟踪控制信息.
   LocationTrackingControl location_tracking_control;
   // 多边形区域集.
@@ -270,13 +271,13 @@ struct ProtocolParameter {
     // 解析出的鉴权码.
     std::vector<uint8_t> authentication_code;
     // 解析出的设置终端参数项.
-    std::map<uint32_t, std::vector<uint8_t>> terminal_parameters;
+    TerminalParameters terminal_parameters;
     // 解析出的查询终端参数ID列表.
     std::vector<uint32_t> terminal_parameter_ids;
     // 解析出的位置基本信息.
     LocationBasicInformation location_info;
     // 解析出的位置附加信息.
-    std::map<uint8_t, std::vector<uint8_t>> location_extension;
+    LocationExtensions location_extension;
     // 解析出的临时位置跟踪控制信息.
     LocationTrackingControl location_tracking_control;
     // 解析出的多边形区域集.

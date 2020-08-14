@@ -49,130 +49,60 @@ namespace libjt808 {
 
 namespace {
 
-// 16进制表.
-constexpr uint8_t kHexTable[] = {
-  '0', '1', '2', '3', '4', '5', '6', '7',
-  '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
-};
-
-// 任意数值转16进制字符串.
-template<typename T>
-inline std::string ToHexString(T const& t) {
-  std::string result;
-  const int len = sizeof(t);
-  union {
-    T t;
-    uint8_t array[len];
-  } cvt = {t};
-  for (int i = 0; i < len; ++i) {
-    result.push_back(kHexTable[cvt.array[len-i-1]/16]);
-    result.push_back(kHexTable[cvt.array[len-i-1]%16]);
-  }
-  return result;
-}
-
-// 单字节终端参数.
-const std::vector<uint32_t> kByteTypeTerminalParameters = {
-  kGNSSLogGGA, kGNSSLogRMC, kGNSSLogATT, kGNSSStartup,
-  kCDRadioReceiceMode, kCDRadioFormCode, kCDRadioStartup,
-  kNtripCorsGGAReportInterval, kNtripCorsStartup, 
-  kNtripServiceGGAReportInterval, kNtripServiceStartup,
-  kJT808ServiceReportInterval, kJT808ServiceStartup,
-};
-// 双字节终端参数.
-const std::vector<uint32_t> kWordTypeTerminalParameters = {
-  kCDRadioWorkFreq, kNtripCorsPort, kNtripServicePort, kJT808ServicePort,
-};
-// 四字节终端参数.
-const std::vector<uint32_t> kDWordTypeTerminalParameters = {
-  kTerminalHeartBeatInterval, kCDRadioServiceBDRT,
-};
-// 字符串终端参数.
-const std::vector<uint32_t> kStringTypeTerminalParameters = {
-  kNtripCorsIP, kNtripCorsUser, kNtripCorsPasswd, kNtripCorsMountPoint,
-  kNtripServiceIP, kNtripServiceUser, kNtripServicePasswd,
-  kNtripServiceMountPoint,
-  kJT808ServiceIP, kJT808ServicePhoneNumber,
-};
-
 // 显示位置上报信息.
 void PrintLocationReportInfo(ProtocolParameter const& para) {
   auto const& basic_info = para.parse.location_info;
   auto const& extension_info = para.parse.location_extension;
-  printf("inout area alarm bit: %d\n", basic_info.alarm.bit.in_out_area);
-  printf("psoition status: %d\n", basic_info.status.bit.positioning);
-  printf("latitude: %.6lf\n", basic_info.latitude*1e-6);
-  printf("longitude: %.6lf\n", basic_info.longitude*1e-6);
-  printf("atitude: %d\n", basic_info.altitude);
-  printf("speed: %d\n", basic_info.speed*10);
-  printf("bearing: %d\n", basic_info.bearing);
-  printf("time: %s\n", basic_info.time.c_str());
-  auto it = extension_info.find(libjt808::kGnssSatellites);
-  if (it != extension_info.end())
-    printf("satellites number: %d\n", it->second[0]);
-  it = extension_info.find(libjt808::kCustomInformationLength);
-  if (it != extension_info.end())
-    printf("has extension custom\n");
-  it = extension_info.find(libjt808::kPositioningStatus);
-  if (it != extension_info.end())
-    printf("position fix status: %d\n", it->second[0]);
-  it = extension_info.find(libjt808::kAccessAreaAlarm);
+  printf("Location Report:\n");
+  printf("  inout area alarm bit: %d\n", basic_info.alarm.bit.in_out_area);
+  printf("  psoition status: %d\n", basic_info.status.bit.positioning);
+  printf("  latitude: %.6lf\n", basic_info.latitude*1e-6);
+  printf("  longitude: %.6lf\n", basic_info.longitude*1e-6);
+  printf("  atitude: %d\n", basic_info.altitude);
+  printf("  speed: %d\n", basic_info.speed*10);
+  printf("  bearing: %d\n", basic_info.bearing);
+  printf("  time: %s\n", basic_info.time.c_str());
+  printf("  location extension:\n");
+  for (auto const& item : extension_info) {
+    printf("    id:%02x, len: %02x, value:",
+           item.first, static_cast<uint8_t>(item.second.size()));
+    for (auto const& uch: item.second) printf(" %02x", uch);
+    printf("\n");
+  }
+  auto it = extension_info.find(libjt808::kAccessAreaAlarm);
   if (it != extension_info.end()) {
     uint8_t location_type;
     uint32_t area_toute_id;
     uint8_t direrion;
+    printf("  in or out area and route informartion:\n");
     if (libjt808::GetAccessAreaAlarmBody(it->second,
         &location_type, &area_toute_id, &direrion) == 0) {
-      printf("area type: %d\n", location_type);
-      printf("area id: %04X\n", area_toute_id);
-      printf("area direction: %d\n", direrion);
+      printf("    location type: %d\n", location_type);
+      printf("    id: %04X\n", area_toute_id);
+      printf("    direction: %d\n", direrion);
     }
   }
-}
-
-// 生成终端参数项的格式化输出字符串.
-std::string GeneralTerminalParameterFormatString(
-    uint32_t const& id, std::vector<uint8_t> const& value) {
-  std::string result = "id: ";
-  result += ToHexString(id) + ", value: ";
-  if (find(kByteTypeTerminalParameters.begin(),
-              kByteTypeTerminalParameters.end(), id) !=
-          kByteTypeTerminalParameters.end()) {
-    result += std::to_string(value[0]);
-  } else if (find(kWordTypeTerminalParameters.begin(),
-                  kWordTypeTerminalParameters.end(), id) !=
-                kWordTypeTerminalParameters.end()) {
-    result += std::to_string(value[0]*256+value[1]);
-  } else if (find(kDWordTypeTerminalParameters.begin(),
-                      kDWordTypeTerminalParameters.end(), id) !=
-                 kDWordTypeTerminalParameters.end()) {
-    result += std::to_string(value[0]*65536*256 + value[1]*65536 +
-                             value[2]*256 + value[3]);
-  } else if (find(kStringTypeTerminalParameters.begin(),
-                  kStringTypeTerminalParameters.end(), id) !=
-                 kStringTypeTerminalParameters.end()) {
-    result.insert(result.end(), value.begin(), value.end());
-  } else {
-    return std::string{};
-  }
-  return result;
 }
 
 // 显示终端参数.
 void PrintTerminalParameter(ProtocolParameter const& para) {
   std::string str;
+  printf("Terminal Parameters:\n");
   if (!para.terminal_parameter_ids.empty()) {
     for (auto const& id : para.terminal_parameter_ids) {
       auto const& it = para.parse.terminal_parameters.find(id);
       if (it !=  para.parse.terminal_parameters.end()) {
-        str = GeneralTerminalParameterFormatString(id, it->second);
-        if (!str.empty()) printf("%s\n", str.c_str());
+        printf("  ID:%08x, Length:%d, Value:",
+               it->first, static_cast<int>(it->second.size()));
+        for (auto const& uch : it->second) printf(" %02X", uch);
+        printf("\n");
       }
     }
   } else {
     for (auto const& item : para.parse.terminal_parameters) {
-      str = GeneralTerminalParameterFormatString(item.first, item.second);
-        if (!str.empty()) printf("%s\n", str.c_str());
+      printf("  ID:%08x, Value:", item.first);
+      for (auto const& uch : item.second) printf(" %02X", uch);
+      printf("\n");
     }
   }
 }

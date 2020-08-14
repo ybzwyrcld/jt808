@@ -216,44 +216,21 @@ class JT808Client {
     parameter_.location_info.bearing = static_cast<uint16_t>(bearing);
     parameter_.location_info.time.assign(timestamp.begin(), timestamp.end());
   }
-  // 更新GNSS定位卫星数.
-  // Args:
-  //     num:  定位使用卫星数.
-  // Returns:
-  //     None.
-  void UpdateGNSSSatelliteNumber(uint8_t const& num) {
-    auto const& it = parameter_.location_extension.find(kGnssSatellites);
-    if (it != parameter_.location_extension.end()) {
-      it->second.clear();
-      it->second.push_back(num);
-    } else {
-      parameter_.location_extension.insert(
-          std::make_pair(kGnssSatellites, std::vector<uint8_t>{num}));
-    }
+  // 获取位置信息附加项.
+  int GetLocationExtension(LocationExtensions* items) {
+    if (items == nullptr) return -1;
+    items->clear();
+    items->insert(parameter_.location_extension.begin(),
+                  parameter_.location_extension.end());
+    return 0;
   }
-  // 更新GNSS定位解状态.
-  // 此项为自定义终端参数, 非相关设备请忽略.
-  // Args:
-  //     fix:  定位状态: 1-单点定位. 2-伪距差分,
-  //         4-RTK固定, 5-RTK浮点, 6-惯导.
-  // Returns:
-  //     None.
-  void UpdateGNSSPositioningSolutionStatus(uint8_t const& fix) {
-    auto const& it = parameter_.location_extension.find(kPositioningStatus);
-    if (it != parameter_.location_extension.end()) {
-      it->second.clear();
-      it->second.push_back(fix);
-    } else {
-      parameter_.location_extension.insert(
-          std::make_pair(kPositioningStatus, std::vector<uint8_t>{fix}));
-    }
-    // 检查后续自定义信息长度项是否存在.
-    auto const& iter =
-        parameter_.location_extension.find(kCustomInformationLength);
-    if (iter == parameter_.location_extension.end()) {
-      parameter_.location_extension.insert(
-        std::make_pair(kCustomInformationLength, std::vector<uint8_t>{0}));
-    }
+  // 获取位置信息附加项.
+  LocationExtensions const& GetLocationExtension(void) const {
+    return parameter_.location_extension;
+  }
+  // 获取位置信息附加项.
+  LocationExtensions& GetLocationExtension(void) {
+    return parameter_.location_extension;
   }
   // 设置位置上报时间间隔.
   void set_location_report_inteval(uint8_t const& intv) {
@@ -264,96 +241,6 @@ class JT808Client {
     kAlarmOccurred = 0x1,
     kStateChanged = 0x2,
   };
-
-  //
-  // 终端参数相关.
-  //
-  // 获取终端心跳时间间隔.
-  int GetTerminalHeartbeatInterval(uint32_t* interval) const {
-    return ParseTerminalParameterTerminalHeartBeatInterval(
-        parameter_.terminal_parameters, interval);
-  }
-  // 设置终端心跳时间间隔.
-  int SetTerminalHeartbeatInterval(uint32_t const& interval) {
-    return PackagingTerminalParameterTerminalHeartBeatInterval(
-        interval, &parameter_.terminal_parameters);
-  }
-  // 以下为自定义终端参数, 非相关设备请忽略.
-  // 获取GNSS模块输出语句配置.
-  int GetGNSSModelLog(uint8_t* loggga_en, uint8_t* logrmc_en,
-                      uint8_t* logatt_en, uint8_t* startup) const {
-    return ParseTerminalParameterGNSSLog(parameter_.terminal_parameters,
-        loggga_en, logrmc_en, logatt_en, startup);
-  }
-  // 设置GNSS模块输出语句.
-  int SetGNSSModelLog(uint8_t const& loggga_en, uint8_t const& logrmc_en,
-                      uint8_t const& logatt_en, uint8_t const& startup) {
-    return PackagingTerminalParameterGNSSLog(
-        loggga_en, logrmc_en, logatt_en, startup,
-        &parameter_.terminal_parameters);
-  }
-  // 获取CDRadio模块配置.
-  int GetCDRadio(uint32_t* bdrt, uint16_t* freq,
-                 uint8_t* recv_mode, uint8_t* form_code,
-                 uint8_t* startup) const {
-    return ParseTerminalParameterCDRadio(parameter_.terminal_parameters,
-        bdrt, freq, recv_mode, form_code, startup);
-  }
-  // 设置CDRadio模块.
-  int SetCDRadio(uint32_t const& bdrt, uint16_t const& freq,
-                 uint8_t const& recv_mode, uint8_t const& form_code,
-                 uint8_t const& startup) {
-    return PackagingTerminalParameterCDRadio(
-        bdrt, freq, recv_mode, form_code, startup,
-        &parameter_.terminal_parameters);
-  }
-  // 获取Ntrip网络差分配置.
-  int GetNtripCors(std::string* ip, uint16_t* port,
-                   std::string* user, std::string* pwd,
-                   std::string* mp, uint8_t* intv, uint8_t* startup) const {
-    return ParseTerminalParameterNtripCors(parameter_.terminal_parameters,
-        ip, port, user, pwd, mp, intv, startup);
-  }
-  // 设置Ntrip网络差分.
-  int SetNtripCors(std::string const& ip, uint16_t const& port,
-                   std::string const& user, std::string const& pwd,
-                   std::string const& mp, uint8_t const& intv,
-                   uint8_t const& startup) {
-    return PackagingTerminalParameterNtripCors(
-        ip, port, user, pwd, mp, intv, startup,
-        &parameter_.terminal_parameters);
-  }
-  // 获取Ntrip后台配置.
-  int GetNtripService(std::string* ip, uint16_t* port,
-                      std::string* user, std::string* pwd,
-                      std::string* mp, uint8_t* intv, uint8_t* startup) const {
-    return ParseTerminalParameterNtripService(parameter_.terminal_parameters,
-        ip, port, user, pwd, mp, intv, startup);
-  }
-  // 设置Ntrip后台.
-  int SetNtripService(std::string const& ip, uint16_t const& port,
-                      std::string const& user, std::string const& pwd,
-                      std::string const& mp, uint8_t const& intv,
-                      uint8_t const& startup) {
-    return PackagingTerminalParameterNtripService(
-        ip, port, user, pwd, mp, intv, startup,
-        &parameter_.terminal_parameters);
-  }
-  // 获取JT808后台配置.
-  int GetJT808Service(std::string* ip, uint16_t* port,
-                      std::string* phone,  uint8_t* intv,
-                      uint8_t* startup) const {
-    return ParseTerminalParameterJT808Service(parameter_.terminal_parameters,
-        ip, port, phone, intv, startup);
-  }
-  // 设置JT808后台.
-  int SetJT808Service(std::string const& ip, uint16_t const& port,
-                      std::string const& phone, uint8_t const& intv,
-                      uint8_t const& startup) {
-    return PackagingTerminalParameterJT808Service(
-        ip, port, phone, intv, startup,
-        &parameter_.terminal_parameters);
-  }
   // 获取所有终端参数.
   int GetTerminalParameters(
       std::map<uint32_t, std::vector<uint8_t>>* para) const {
@@ -363,13 +250,16 @@ class JT808Client {
                  parameter_.terminal_parameters.end());
     return 0;
   }
-  std::map<uint32_t, std::vector<uint8_t>> const&
-  GetTerminalParameters(void) const {
+  // 获取所有终端参数.
+  TerminalParameters const& GetTerminalParameters(void) const {
+    return parameter_.terminal_parameters;
+  }
+  // 获取所有终端参数.
+  TerminalParameters& GetTerminalParameters(void) {
     return parameter_.terminal_parameters;
   }
   // 设置所有终端参数.
-  void SetTerminalParameters(
-      std::map<uint32_t, std::vector<uint8_t>> const& para){
+  void SetTerminalParameters(TerminalParameters const& para){
     parameter_.terminal_parameters.clear();
     parameter_.terminal_parameters.insert(para.begin(), para.end());
   }

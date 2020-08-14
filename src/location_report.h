@@ -32,6 +32,7 @@
 
 #include <stdint.h>
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -197,6 +198,9 @@ enum LocationExtensionId {
   // 定位解状态, BYTE
   kPositioningStatus = 0xEE
 };
+
+// 位置信息附加项存储定义: key: itemid, value: itemvalue.
+using LocationExtensions = std::map<uint8_t, std::vector<uint8_t>>;
 
 //  超速报警附加信息位置类型.
 enum kOverSpeedAlarmLocationType {

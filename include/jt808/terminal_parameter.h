@@ -144,79 +144,6 @@ enum TerminalParameterID {
   //          bit29 表示数据采集方式, 0: 原始数据, 1: 采集区间的计算值;
   //          bit28-bit0 表示CAN总线ID.
   kSetCANBusSpecial = 0x0110,
-  //
-  // 用户自定义.
-  //
-  // GNSS模块.
-  //
-  // BYTE,  输出GGA格式数据. 0: 禁用; 1: 启用.
-  kGNSSLogGGA = 0xF000,
-  // BYTE,  输出RMC格式数据. 0: 禁用; 1: 启用.
-  kGNSSLogRMC = 0xF001,
-  // BYTE,  输出ATT格式数据. 0: 禁用; 1: 启用.
-  kGNSSLogATT = 0xF002,
-  // BYTE,  开机启用模块. 0: 禁用; 1: 启用.
-  kGNSSStartup = 0xF003,
-  //
-  // CDRadio模块.
-  //
-  // DWORD,  输出波特率.
-  kCDRadioServiceBDRT = 0xF010,
-  // WORD,  工作频点.
-  kCDRadioWorkFreq = 0xF011,
-  // BYTE,  接收模式.
-  kCDRadioReceiceMode = 0xF012,
-  // BYTE,  业务编号.
-  kCDRadioFormCode = 0xF013,
-  // BYTE,  开机启用模块. 0: 禁用; 1: 启用.
-  kCDRadioStartup = 0xF014,
-  //
-  // NTRIP CORS差分站.
-  //
-  // STRING,  地址.
-  kNtripCorsIP = 0xF020,
-  // WORD,  端口.
-  kNtripCorsPort = 0xF021,
-  // STRING,  用户名.
-  kNtripCorsUser = 0xF022,
-  // STRING,  密码.
-  kNtripCorsPasswd = 0xF023,
-  // STRING,  挂载点.
-  kNtripCorsMountPoint = 0xF024,
-  // BYTE,  GGA汇报间隔.
-  kNtripCorsGGAReportInterval = 0xF025,
-  // BYTE,  开机启用模块. 0: 禁用; 1: 启用.
-  kNtripCorsStartup = 0xF026,
-  //
-  // NTRIP 后台.
-  //
-  // STRING,  地址.
-  kNtripServiceIP = 0xF030,
-  // WORD,  端口.
-  kNtripServicePort = 0xF031,
-  // STRING,  用户名.
-  kNtripServiceUser = 0xF032,
-  // STRING,  密码.
-  kNtripServicePasswd = 0xF033,
-  // STRING,  挂载点.
-  kNtripServiceMountPoint = 0xF034,
-  // BYTE,  GGA汇报间隔.
-  kNtripServiceGGAReportInterval = 0xF035,
-  // BYTE,  开机启用模块. 0: 禁用; 1: 启用.
-  kNtripServiceStartup = 0xF036,
-  //
-  // JT808 后台.
-  //
-  // STRING,  地址.
-  kJT808ServiceIP = 0xF040,
-  // WORD,  端口.
-  kJT808ServicePort = 0xF041,
-  // STRING,  终端手机号.
-  kJT808ServicePhoneNumber = 0xF042,
-  // BYTE,  汇报间隔.
-  kJT808ServiceReportInterval = 0xF043,
-  // BYTE,  开机启用模块. 0: 禁用; 1: 启用.
-  kJT808ServiceStartup = 0xF044,
 };
 
 // GNSS模块数据输出波特率.
@@ -229,30 +156,30 @@ enum GNSSModelBaudeRate {
   kBDRT115200,
 };
 
+// 终端参数存储定义: key: itemid, value: itemvalue.
+using TerminalParameters = std::map<uint32_t, std::vector<uint8_t>>;
+
 //
 //  终端参数转换.
 //
 // undefined type --> terminal parameter item.
 template<typename T>
 inline int SetTerminalParameter(
-    uint32_t const& key, T const& value,
-    std::map<uint32_t, std::vector<uint8_t>>* items) {
+    uint32_t const& key, T const& value, TerminalParameters* items) {
   return -1;
 }
 
 // terminal parameter item --> undefined type.
 template<typename T>
 inline int GetTerminalParameter(
-    std::map<uint32_t, std::vector<uint8_t>> const& items,
-    uint32_t const& key, T* value) {
+    TerminalParameters const& items, uint32_t const& key, T* value) {
   return -1;
 }
 
 // uint8_t --> terminal parameter item.
 template<>
 inline int SetTerminalParameter(
-    uint32_t const& key, uint8_t const& value,
-    std::map<uint32_t, std::vector<uint8_t>>* items) {
+    uint32_t const& key, uint8_t const& value, TerminalParameters* items) {
   if (items == nullptr) return -1;
   auto it = items->find(key);
   if (it != items->end()) {
@@ -267,8 +194,7 @@ inline int SetTerminalParameter(
 // terminal parameter item --> uint8_t.
 template<>
 inline int GetTerminalParameter(
-    std::map<uint32_t, std::vector<uint8_t>> const& items,
-    uint32_t const& key, uint8_t* value) {
+    TerminalParameters const& items, uint32_t const& key, uint8_t* value) {
   if (value == nullptr) return -1;
   auto const& it = items.find(key);
   if (it != items.end()) {
@@ -282,8 +208,7 @@ inline int GetTerminalParameter(
 // uint16_t --> terminal parameter item.
 template<>
 inline int SetTerminalParameter(
-    uint32_t const& key, uint16_t const& value,
-    std::map<uint32_t, std::vector<uint8_t>>* items) {
+    uint32_t const& key, uint16_t const& value, TerminalParameters* items) {
   if (items == nullptr) return -1;
   U16ToU8Array cvt;
   cvt.u16val = EndianSwap16(value);
@@ -301,8 +226,7 @@ inline int SetTerminalParameter(
 // terminal parameter item --> uint16_t.
 template<>
 inline int GetTerminalParameter(
-    std::map<uint32_t, std::vector<uint8_t>> const& items,
-    uint32_t const& key, uint16_t* value) {
+    TerminalParameters const& items, uint32_t const& key, uint16_t* value) {
   if (value == nullptr) return -1;
   auto const& it = items.find(key);
   if (it != items.end()) {
@@ -316,8 +240,7 @@ inline int GetTerminalParameter(
 // uint32_t --> terminal parameter item.
 template<>
 inline int SetTerminalParameter(
-    uint32_t const& key, uint32_t const& value,
-    std::map<uint32_t, std::vector<uint8_t>>* items) {
+    uint32_t const& key, uint32_t const& value, TerminalParameters* items) {
   if (items == nullptr) return -1;
   U32ToU8Array cvt;
   cvt.u32val = EndianSwap32(value);
@@ -335,8 +258,7 @@ inline int SetTerminalParameter(
 // terminal parameter item --> uint32_t.
 template<>
 inline int GetTerminalParameter(
-    std::map<uint32_t, std::vector<uint8_t>> const& items,
-    uint32_t const& key, uint32_t* value) {
+    TerminalParameters const& items, uint32_t const& key, uint32_t* value) {
   if (value == nullptr) return -1;
   auto const& it = items.find(key);
   if (it != items.end()) {
@@ -353,8 +275,7 @@ inline int GetTerminalParameter(
 // std::string --> terminal parameter item.
 template<>
 inline int SetTerminalParameter(
-    uint32_t const& key, std::string const& value,
-    std::map<uint32_t, std::vector<uint8_t>>* items) {
+    uint32_t const& key, std::string const& value, TerminalParameters* items) {
   if (items == nullptr) return -1;
   auto it = items->find(key);
   if (it != items->end()) {
@@ -370,8 +291,7 @@ inline int SetTerminalParameter(
 // terminal parameter item --> std::string.
 template<>
 inline int GetTerminalParameter(
-    std::map<uint32_t, std::vector<uint8_t>> const& items,
-    uint32_t const& key, std::string* value) {
+    TerminalParameters const& items, uint32_t const& key, std::string* value) {
   if (value == nullptr) return -1;
   auto const& it = items.find(key);
   if (it != items.end()) {
@@ -392,8 +312,7 @@ inline int GetTerminalParameter(
 // Returns:
 //    成功返回0, 失败返回-1.
 inline int PackagingTerminalParameterTerminalHeartBeatInterval(
-    uint32_t const& intv,
-    std::map<uint32_t, std::vector<uint8_t>>* items) {
+    uint32_t const& intv, TerminalParameters* items) {
   return SetTerminalParameter(kTerminalHeartBeatInterval, intv, items);
 }
 
@@ -404,241 +323,8 @@ inline int PackagingTerminalParameterTerminalHeartBeatInterval(
 // Returns:
 //    成功返回0, 失败返回-1.
 inline int ParseTerminalParameterTerminalHeartBeatInterval(
-    std::map<uint32_t, std::vector<uint8_t>> const& items,
-    uint32_t* intv) {
+    TerminalParameters const& items, uint32_t* intv) {
   return GetTerminalParameter(items, kTerminalHeartBeatInterval, intv);
-}
-
-//
-// 自定义的终端参数项封装/解析.
-//
-// 封装GNSS模块输出配置.
-// Args:
-//    loggga:  GNSS模块GGA语句输出状态, 0-关闭, 1-开启.
-//    logrmc:  GNSS模块RMC语句输出状态, 0-关闭, 1-开启.
-//    logatt:  GNSS模块ATT语句输出状态, 0-关闭, 1-开启.
-//    startup:  GNSS模块开机启用状态, 0-关闭, 1-开启.
-//    items:  保存解析的终端参数项的map容器.
-// Returns:
-//    成功返回0, 失败返回-1.
-inline int PackagingTerminalParameterGNSSLog(
-    uint8_t const& loggga, uint8_t const& logrmc,
-    uint8_t const& logatt, uint8_t const& startup,
-    std::map<uint32_t, std::vector<uint8_t>>* items) {
-  int ret = !SetTerminalParameter(kGNSSLogGGA, loggga, items) &&
-            !SetTerminalParameter(kGNSSLogRMC, logrmc, items) &&
-            !SetTerminalParameter(kGNSSLogATT, logatt, items) &&
-            !SetTerminalParameter(kGNSSStartup, startup, items);
-  return (ret > 0 ? 0 : -1);
-}
-// 解析GNSS模块输出配置.
-// Args:
-//    items:  终端参数项的map容器.
-//    loggga:  保存解析的GNSS模块GGA语句输出状态.
-//    logrmc:  保存解析的GNSS模块RMC语句输出状态.
-//    logatt:  保存解析的GNSS模块ATT语句输出状态.
-//    startup:  保存解析的GNSS模块开机启用状态.
-// Returns:
-//    成功返回0, 失败返回-1.
-inline int ParseTerminalParameterGNSSLog(
-    std::map<uint32_t, std::vector<uint8_t>> const& items,
-    uint8_t* loggga, uint8_t* logrmc,
-    uint8_t* logatt, uint8_t* startup) {
-  int ret = !GetTerminalParameter(items, kGNSSLogGGA, loggga) &&
-            !GetTerminalParameter(items, kGNSSLogRMC, logrmc) &&
-            !GetTerminalParameter(items, kGNSSLogATT, logatt) &&
-            !GetTerminalParameter(items, kGNSSStartup, startup);
-  return (ret > 0 ? 0 : -1);
-}
-// 封装CDRadio模块配置.
-// Args:
-//    bdrt:  业务口输出波特率.
-//    freq:  工作频点.
-//    recv_mode:  接收模式.
-//    form_code:  业务号.
-//    startup:  CDRadio模块开机启用状态, 0-关闭, 1-开启.
-//    items:  保存解析的终端参数项的map容器.
-// Returns:
-//    成功返回0, 失败返回-1.
-inline int PackagingTerminalParameterCDRadio(
-    uint32_t const& bdrt, uint16_t const& freq, uint8_t const& recv_mode,
-    uint8_t const& form_code, uint8_t const& startup,
-    std::map<uint32_t, std::vector<uint8_t>>* items) {
-  int ret = !SetTerminalParameter(kCDRadioServiceBDRT, bdrt, items) &&
-            !SetTerminalParameter(kCDRadioWorkFreq, freq, items) &&
-            !SetTerminalParameter(kCDRadioReceiceMode, recv_mode, items) &&
-            !SetTerminalParameter(kCDRadioFormCode, form_code, items) &&
-            !SetTerminalParameter(kCDRadioStartup, startup, items);
-  return (ret > 0 ? 0 : -1);
-}
-// 解析CDRadio模块配置.
-// Args:
-//    items:  终端参数项的map容器.
-//    bdrt:  保存解析的CDRadio模块业务口输出波特率.
-//    freq:  保存解析的CDRadio模块工作频点.
-//    recv_mode:  保存解析的CDRadio模块接收模式.
-//    form_code: 保存解析的CDRadio模块业务号.
-//    startup:  保存解析的CDRadio模块开机启用状态.
-// Returns:
-//    成功返回0, 失败返回-1.
-inline int ParseTerminalParameterCDRadio(
-    std::map<uint32_t, std::vector<uint8_t>> const& items,
-    uint32_t* bdrt, uint16_t* freq, uint8_t* recv_mode,
-    uint8_t* form_code, uint8_t* startup) {
-  int ret = !GetTerminalParameter(items, kCDRadioServiceBDRT, bdrt) &&
-            !GetTerminalParameter(items, kCDRadioWorkFreq, freq) &&
-            !GetTerminalParameter(items, kCDRadioReceiceMode, recv_mode) &&
-            !GetTerminalParameter(items, kCDRadioFormCode, form_code) &&
-            !GetTerminalParameter(items, kCDRadioStartup, startup);
-  return (ret > 0 ? 0 : -1);
-}
-// 封装Ntrip CORS差分站配置.
-// Args:
-//    ip:  Ntrip CORS服务器IP地址.
-//    port:  Ntrip CORS服务器端口.
-//    user:  Ntrip CORS服务器用户名.
-//    pwd:  Ntrip CORS服务器密码.
-//    mp:  Ntrip CORS服务器挂载点.
-//    intv:  Ntrip CORS服务器GGA语句上报时间间隔.
-//    startup:  Ntrip CORS差分开机启用状态, 0-关闭, 1-开启.
-//    items:  保存解析的终端参数项的map容器.
-// Returns:
-//    成功返回0, 失败返回-1.
-inline int PackagingTerminalParameterNtripCors(
-    std::string const& ip, uint16_t const& port, std::string const& user,
-    std::string const& pwd, std::string const& mp,
-    uint8_t const& intv, uint8_t const& startup,
-    std::map<uint32_t, std::vector<uint8_t>>* items) {
-  int ret = !SetTerminalParameter(kNtripCorsIP, ip, items) &&
-            !SetTerminalParameter(kNtripCorsPort, port, items) &&
-            !SetTerminalParameter(kNtripCorsUser, user, items) &&
-            !SetTerminalParameter(kNtripCorsPasswd, pwd, items) &&
-            !SetTerminalParameter(kNtripCorsMountPoint, mp, items) &&
-            !SetTerminalParameter(kNtripCorsGGAReportInterval, intv, items) &&
-            !SetTerminalParameter(kNtripCorsStartup, startup, items);
-  return (ret > 0 ? 0 : -1);
-}
-// 解析Ntrip CORS差分站配置.
-// Args:
-//    items:  终端参数项的map容器.
-//    ip:  保存解析的Ntrip CORS服务器IP地址.
-//    port:  保存解析的Ntrip CORS服务器端口.
-//    user:  保存解析的Ntrip CORS服务器用户名.
-//    pwd:  保存解析的Ntrip CORS服务器密码.
-//    mp:  保存解析的Ntrip CORS服务器挂载点.
-//    intv:  保存解析的Ntrip CORS服务器GGA语句上报时间间隔.
-//    startup: 保存解析的Ntrip CORS服务器开机启用状态.
-// Returns:
-//    成功返回0, 失败返回-1.
-inline int ParseTerminalParameterNtripCors(
-    std::map<uint32_t, std::vector<uint8_t>> const& items,
-    std::string* ip, uint16_t* port, std::string* user, std::string* pwd,
-    std::string* mp, uint8_t* intv, uint8_t* startup) {
-  int ret = !GetTerminalParameter(items, kNtripCorsIP, ip) &&
-            !GetTerminalParameter(items, kNtripCorsPort, port) &&
-            !GetTerminalParameter(items, kNtripCorsUser, user) &&
-            !GetTerminalParameter(items, kNtripCorsPasswd, pwd) &&
-            !GetTerminalParameter(items, kNtripCorsMountPoint, mp) &&
-            !GetTerminalParameter(
-                items, kNtripCorsGGAReportInterval, intv) &&
-            !GetTerminalParameter(items, kNtripCorsStartup, startup);
-  return (ret > 0 ? 0 : -1);
-}
-
-// 封装Ntrip后台配置.
-// Args:
-//    ip:  Ntrip后台服务器IP地址.
-//    port:  Ntrip后台服务器端口.
-//    user:  Ntrip后台服务器用户名.
-//    pwd:  Ntrip后台服务器密码.
-//    mp:  Ntrip后台服务器挂载点.
-//    startup:  Ntrip后台开机启用状态, 0-关闭, 1-开启.
-//    items:  终端参数项的map容器.
-// Returns:
-//    成功返回0, 失败返回-1.
-inline int PackagingTerminalParameterNtripService(
-    std::string const& ip, uint16_t const& port, std::string const& user,
-    std::string const& pwd, std::string const& mp,
-    uint8_t const& intv, uint8_t const& startup,
-    std::map<uint32_t, std::vector<uint8_t>>* items) {
-  int ret = !SetTerminalParameter(kNtripServiceIP, ip, items) &&
-            !SetTerminalParameter(kNtripServicePort, port, items) &&
-            !SetTerminalParameter(kNtripServiceUser, user, items) &&
-            !SetTerminalParameter(kNtripServicePasswd, pwd, items) &&
-            !SetTerminalParameter(kNtripServiceMountPoint, mp, items) &&
-            !SetTerminalParameter(
-                kNtripServiceGGAReportInterval, intv, items) &&
-            !SetTerminalParameter(kNtripServiceStartup, startup, items);
-  return (ret > 0 ? 0 : -1);
-}
-
-// 解析Ntrip后台配置.
-// Args:
-//    items:  终端参数项的map容器.
-//    ip:  保存解析的Ntrip后台服务器IP地址.
-//    port:  保存解析的Ntrip后台服务器端口.
-//    user:  保存解析的Ntrip后台服务器用户名.
-//    pwd:  保存解析的Ntrip后台服务器密码.
-//    mp:  保存解析的Ntrip后台服务器挂载点.
-//    intv:  保存解析的Ntrip后台服务器GGA语句上报时间间隔.
-//    startup:  保存解析的Ntrip后台服务器开机启用状态.
-// Returns:
-//    成功返回0, 失败返回-1.
-inline int ParseTerminalParameterNtripService(
-    std::map<uint32_t, std::vector<uint8_t>> const& items,
-    std::string* ip, uint16_t* port, std::string* user, std::string* pwd,
-    std::string* mp, uint8_t* intv, uint8_t* startup) {
-  int ret = !GetTerminalParameter(items, kNtripServiceIP, ip) &&
-            !GetTerminalParameter(items, kNtripServicePort, port) &&
-            !GetTerminalParameter(items, kNtripServiceUser, user) &&
-            !GetTerminalParameter(items, kNtripServicePasswd, pwd) &&
-            !GetTerminalParameter(items, kNtripServiceMountPoint, mp) &&
-            !GetTerminalParameter(
-                items, kNtripServiceGGAReportInterval, intv) &&
-            !GetTerminalParameter(items, kNtripServiceStartup, startup);
-  return (ret > 0 ? 0 : -1);
-}
-// 封装JT808后台配置.
-// Args:
-//    ip:  JT808后台服务器IP地址.
-//    port:  JT808后台服务器端口.
-//    p_num:  JT808终端手机号.
-//    intv:  JT808后台服务器位置信息上报时间间隔.
-//    startup:  JT808后台开机启用状态, 0-关闭, 1-开启.
-// Returns:
-//    成功返回0, 失败返回-1.
-inline int PackagingTerminalParameterJT808Service(
-    std::string const& ip, uint16_t const& port,
-    std::string const& p_num, uint8_t const& intv, uint8_t const& startup,
-    std::map<uint32_t, std::vector<uint8_t>>* items) {
-  int ret = !SetTerminalParameter(kJT808ServiceIP, ip, items) &&
-            !SetTerminalParameter(kJT808ServicePort, port, items) &&
-            !SetTerminalParameter(kJT808ServicePhoneNumber, p_num, items) &&
-            !SetTerminalParameter(kJT808ServiceReportInterval, intv, items) &&
-            !SetTerminalParameter(kJT808ServiceStartup, startup, items);
-  return (ret > 0 ? 0 : -1);
-}
-
-// 解析JT808后台配置.
-// Args:
-//    items:  终端参数项的map容器.
-//    ip:  保存解析的JT808后台服务器IP地址.
-//    port:  保存解析的JT808后台服务器端口.
-//    p_num:  保存解析的JT808终端手机号.
-//    intv:  保存解析的JT808后台服务器位置信息上报时间间隔.
-//    startup:  保存解析的JT808后台服务器开机启用状态.
-// Returns:
-//    成功返回0, 失败返回-1.
-inline int ParseTerminalParameterJT808Service(
-    std::map<uint32_t, std::vector<uint8_t>> const& items,
-    std::string* ip, uint16_t* port,
-    std::string* p_num, uint8_t* intv, uint8_t* startup) {
-  int ret = !GetTerminalParameter(items, kJT808ServiceIP, ip) &&
-            !GetTerminalParameter(items, kJT808ServicePort, port) &&
-            !GetTerminalParameter(items, kJT808ServicePhoneNumber, p_num) &&
-            !GetTerminalParameter(items, kJT808ServiceReportInterval, intv) &&
-            !GetTerminalParameter(items, kJT808ServiceStartup, startup);
-  return (ret > 0 ? 0 : -1);
 }
 
 }  // namespace libjt808

@@ -297,7 +297,7 @@ class JT808Client {
   using UpgradeCallback = std::function<
       void (uint8_t const& type, char const* data, int const& size)>;
   // 设置下发升级包回调函数.
-  void OnUpgrade(UpgradeCallback const& callback) {
+  void OnUpgraded(UpgradeCallback const& callback) {
     upgrade_callback_ = callback;
   }
 

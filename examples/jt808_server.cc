@@ -33,15 +33,32 @@
 #include "jt808/server.h"
 
 
+namespace {
+
+constexpr uint8_t kManufacturerId[] = {
+  'J', 'T', '8', '0', '8'
+};
+
+}  // namespace
+
 int main(int argc, char **argv) {
   libjt808::JT808Server server;
   server.Init();
   server.SetServerAccessPoint("127.0.0.1", 8888);
   if (server.InitServer() == 0) {
     server.Run();
+    std::string cmd;
     std::this_thread::sleep_for(std::chrono::seconds(1));
     while (server.service_is_running()) {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+      // std::this_thread::sleep_for(std::chrono::seconds(1));
+      std::cin >> cmd;
+      printf("cmd: %s\n", cmd.c_str());
+      if (cmd == "upgrade") {
+        std::vector<uint8_t> m_id(
+            kManufacturerId, kManufacturerId + sizeof(kManufacturerId));
+        server.UpgradeRequestByPhoneNumber(
+            "13395279527", 52, m_id, "1.0.0", "./upgrade_send.bin");
+      }
     }
     server.Stop();
   }

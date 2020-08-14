@@ -33,6 +33,7 @@
 #include <string.h>
 #include <time.h>
 #include <errno.h>
+#include <math.h>
 #if defined(__linux__)
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -41,6 +42,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <fstream>
 
 #include "socket_util.h"
 
@@ -64,9 +66,9 @@ void PrintLocationReportInfo(ProtocolParameter const& para) {
   printf("  time: %s\n", basic_info.time.c_str());
   printf("  location extension:\n");
   for (auto const& item : extension_info) {
-    printf("    id:%02x, len: %02x, value:",
+    printf("    id:%02X, len: %02X, value:",
            item.first, static_cast<uint8_t>(item.second.size()));
-    for (auto const& uch: item.second) printf(" %02x", uch);
+    for (auto const& uch: item.second) printf(" %02X", uch);
     printf("\n");
   }
   auto it = extension_info.find(libjt808::kAccessAreaAlarm);
@@ -92,7 +94,7 @@ void PrintTerminalParameter(ProtocolParameter const& para) {
     for (auto const& id : para.terminal_parameter_ids) {
       auto const& it = para.parse.terminal_parameters.find(id);
       if (it !=  para.parse.terminal_parameters.end()) {
-        printf("  ID:%08x, Length:%d, Value:",
+        printf("  ID:%08X, Length:%d, Value:",
                it->first, static_cast<int>(it->second.size()));
         for (auto const& uch : it->second) printf(" %02X", uch);
         printf("\n");
@@ -100,7 +102,7 @@ void PrintTerminalParameter(ProtocolParameter const& para) {
     }
   } else {
     for (auto const& item : para.parse.terminal_parameters) {
-      printf("  ID:%08x, Value:", item.first);
+      printf("  ID:%08X, Value:", item.first);
       for (auto const& uch : item.second) printf(" %02X", uch);
       printf("\n");
     }
@@ -189,6 +191,80 @@ void JT808Server::Stop(void) {
 #endif
     is_ready_.store(false);
   }
+}
+
+int JT808Server::UpgradeRequest(decltype(socket(0, 0, 0)) const& socket,
+                                int const& upgrade_type,
+                                std::vector<uint8_t> const& manufacturer_id,
+                                std::string const& version_id,
+                                char const* path) {
+  std::ifstream ifs;
+  ifs.open(path, std::ios::in|std::ios::binary);
+  if (!ifs.is_open()) {
+    printf("%s[%d]: Updrade file open failed !!!\n", __FUNCTION__, __LINE__);
+    return -1;
+  }
+  ifs.seekg(0, std::ios::end);
+  size_t length = ifs.tellg();
+  ifs.seekg(0, std::ios::beg);
+  std::unique_ptr<char[]> buffer(
+      new char[length], std::default_delete<char[]>());
+  ifs.read(buffer.get(), length);
+  ifs.close();
+  is_upgrading_clients_.insert(std::make_pair(socket, 0));
+  auto& para = clients_[socket];
+  para.upgrade_info.manufacturer_id.assign(
+      manufacturer_id.begin(), manufacturer_id.end());
+  para.upgrade_info.upgrade_type = upgrade_type;
+  para.upgrade_info.version_id = version_id;
+  uint16_t max_content = 1023-9-para.upgrade_info.version_id.size();
+  if (length > max_content) {  // 需要分包处理.
+    para.msg_head.msgbody_attr.bit.packet = 1;  // 进行分包.
+    para.msg_head.total_packet =
+        static_cast<uint16_t>(ceil(length*1.0/max_content));
+    para.msg_head.packet_seq = 1;
+    size_t len = 0;
+    for (size_t i = 0; i < length; i += max_content) {
+      len = length-i;
+      if (len > max_content) len = max_content;
+      para.upgrade_info.upgrade_data.assign(
+          buffer.get()+i, buffer.get()+i+len);
+      if (PackagingAndSendMessage(socket, kTerminalUpgrade, &para) < 0) {
+        is_upgrading_clients_.erase(socket);
+        return -1;
+      }
+      if (ReceiveAndParseMessage(socket, 5, &para) < 0) {
+        is_upgrading_clients_.erase(socket);
+        return -1;
+      }
+      if (para.parse.msg_head.msg_id != kTerminalGeneralResponse ||
+          para.parse.respone_msg_id != kTerminalUpgrade ||
+          para.parse.respone_result != kSuccess) {
+        is_upgrading_clients_.erase(socket);
+        return -1;   
+      }
+      ++para.msg_head.packet_seq;
+    }
+    para.msg_head.msgbody_attr.bit.packet = 0;
+    para.msg_head.total_packet = 1;
+  } else {
+    para.upgrade_info.upgrade_data.assign(buffer.get(), buffer.get()+length);
+    if (PackagingAndSendMessage(socket, kTerminalUpgrade, &para) < 0) {
+      is_upgrading_clients_.erase(socket);
+      return -1;
+    }
+    if (ReceiveAndParseMessage(socket, 5, &para) < 0) {
+      is_upgrading_clients_.erase(socket);
+      return -1;
+    }
+    if (para.parse.respone_msg_id != kTerminalUpgrade ||
+        para.parse.respone_result != kSuccess) {
+      is_upgrading_clients_.erase(socket);
+      return -1;
+    }
+  }
+  is_upgrading_clients_.erase(socket);
+  return 0;
 }
 
 // 根据提供的消息ID以及调用前此函数前对参数的设定, 生成对应的JT808格式消息,
@@ -300,17 +376,17 @@ void JT808Server::WaitHandler(void) {
     }
     // printf("Connected\n");
     // 设置非阻塞模式.
-    #if defined(__linux__)
-      int flags = fcntl(socket, F_GETFL, 0);
-      fcntl(socket, F_SETFL, flags | O_NONBLOCK);
-    #elif defined(_WIN32)
-      unsigned long ul = 1;
-      if (ioctlsocket(socket, FIONBIO, (unsigned long *)&ul) == SOCKET_ERROR) {
-        printf("%s[%d]: Set socket nonblock failed!!!\n", __FUNCTION__, __LINE__);
-        Close(socket);
-        continue;
-      }
-    #endif
+#if defined(__linux__)
+    int flags = fcntl(socket, F_GETFL, 0);
+    fcntl(socket, F_SETFL, flags | O_NONBLOCK);
+#elif defined(_WIN32)
+    unsigned long ul = 1;
+    if (ioctlsocket(socket, FIONBIO, (unsigned long *)&ul) == SOCKET_ERROR) {
+      printf("%s[%d]: Set socket nonblock failed!!!\n", __FUNCTION__, __LINE__);
+      Close(socket);
+      continue;
+    }
+#endif
     clients_.insert(std::make_pair(socket, para));
   }
   waiting_is_running_.store(false);
@@ -332,11 +408,15 @@ void JT808Server::ServiceHandler(void) {
       kResponseCommand+sizeof(kResponseCommand)/sizeof(kResponseCommand[0])};
   while(service_is_running_) {
     for (auto& socket : clients_) {
+      // 升级请求时不在此处作处理.
+      if (is_upgrading_clients_.find(socket.first) !=
+          is_upgrading_clients_.end()) {
+        std::this_thread::sleep_for(std::chrono:: milliseconds(1));
+        continue;
+      }
       if ((ret = Recv(socket.first, buffer.get(), 4096, 0)) > 0) {
         if (!alive) alive = true;
         msg.assign(buffer.get(), buffer.get() + ret);
-        // for (auto const& uch: msg) printf("%02X ", uch);
-        // printf("\n");
         if (JT808FrameParse(parser_, msg, &socket.second) == 0) {
           socket.second.respone_result = kSuccess;
           auto const& msg_id = socket.second.parse.msg_head.msg_id;

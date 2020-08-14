@@ -28,6 +28,7 @@
 // @Desc    :  None
 
 #include <iostream>
+#include <fstream>
 #include <thread>
 
 #include "jt808/client.h"
@@ -77,6 +78,8 @@ int main(int argc, char **argv) {
   libjt808::JT808Client client;
   client.Init();
   client.SetRemoteAccessPoint("127.0.0.1", 8888);
+  client.SetTerminalPhoneNumber("13395279527");
+  client.set_location_report_inteval(10);
   if ((client.ConnectRemote() == 0) &&
       (client.JT808ConnectionAuthentication() == 0)) {
     client.UpdateLocation(22.570336, 113.937577, 54.0, 60, 0, "200702145429");
@@ -86,6 +89,16 @@ int main(int argc, char **argv) {
     auto& location_extensions = client.GetLocationExtension();
     UpdateGNSSSatelliteNumber(11, &location_extensions);
     UpdateGNSSPositioningSolutionStatus(2, &location_extensions);
+    client.OnUpgraded(
+      [] (uint8_t const& type, char const* data, int const& size) -> void {
+        std::ofstream ofs;
+        ofs.open("./upgrade_recv.bin",
+                 std::ios::out | std::ios::binary | std::ios::trunc);
+        if (ofs.is_open()) {
+          ofs.write(data, size);
+          ofs.close();
+        }
+    });
     client.Run();
     std::this_thread::sleep_for(std::chrono::seconds(1));
     while (client.service_is_running()) {

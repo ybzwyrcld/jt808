@@ -60,9 +60,7 @@ int main(int argc, char **argv) {
     return -1;
   }
   // 读取升级文件内容.
-  std::vector<std::string> nmea_lines;
   std::ifstream ifs;
-  std::string line;
   ifs.open(argv[1], std::ios::in|std::ios::binary);
   if (!ifs.is_open()) {
     printf("Open file failed!!!\n");

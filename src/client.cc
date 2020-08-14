@@ -285,10 +285,11 @@ void JT808Client::ThreadHandler(void) {
   }
   std::vector<uint8_t> msg;
   bool first_report = true;
+  std::unique_ptr<char[]> upgrade_buffer;
+  int total_size = 0;
+  int packet_max_size = 0;
   while (service_is_running_) {
     if ((ret = Recv(client_, buffer.get(), 4096, 0)) > 0) {
-      // printf("Recv[%d]: %s\n", ret, buffer.get());
-      // continue;
       msg.assign(buffer.get(), buffer.get()+ret);
       if (JT808FrameParse(parser_, msg, &parameter_) == 0) {
         auto const& msg_id = parameter_.parse.msg_head.msg_id;
@@ -321,6 +322,53 @@ void JT808Client::ThreadHandler(void) {
           DeletePolygonAreaByIDs(parameter_.polygon_area_id);
           // 调用回调函数.
           polygon_area_callback_();
+        } else if (msg_id == kTerminalUpgrade) {  // 下发终端升级包.
+          // TODO(mengyuming@hotmail.com): 未做分包完整性校验.
+          auto const& upgrade_info = parameter_.parse.upgrade_info;
+          auto const& msg_head =  parameter_.parse.msg_head;
+          auto const& packet_size = upgrade_info.upgrade_data.size();
+          // 检查分包.
+          if (msg_head.msgbody_attr.bit.packet == 1) {
+            // 分配空间.
+            if (msg_head.packet_seq == 1) {
+              int max_len = msg_head.msgbody_attr.bit.msglen*
+                            msg_head.total_packet;
+                upgrade_buffer = std::move(std::unique_ptr<char[]>(
+                    new char[max_len], std::default_delete<char[]>()));
+              // 子包最大的数据长度.
+              packet_max_size = packet_size;
+            }
+            memcpy(&(upgrade_buffer[packet_max_size*(msg_head.packet_seq-1)]),
+                   upgrade_info.upgrade_data.data(),
+                   packet_size);
+            total_size += packet_size;
+            parameter_.respone_result = kSuccess;
+            PackagingAndSendMessage(kTerminalGeneralResponse);
+            // 等待所有数据传输完成.
+            if (msg_head.packet_seq == msg_head.total_packet) {
+              upgrade_callback_(upgrade_info.upgrade_type,
+                                upgrade_buffer.get(),
+                                total_size);
+              upgrade_buffer.release();
+              // 暂时直接返回升级结果.
+              parameter_.respone_result = kTerminalUpgradeSuccess;
+              PackagingAndSendMessage(kTerminalUpgradeResultReport);
+            }
+          } else {
+            parameter_.respone_result = kSuccess;
+            PackagingAndSendMessage(kTerminalGeneralResponse);
+            upgrade_callback_(upgrade_info.upgrade_type,
+                              reinterpret_cast<char const*>(
+                                  upgrade_info.upgrade_data.data()),
+                              static_cast<int>(
+                                  upgrade_info.upgrade_data.size()));
+            // 暂时直接返回升级结果.
+            parameter_.respone_result = kTerminalUpgradeSuccess;
+            PackagingAndSendMessage(kTerminalUpgradeResultReport);
+          }
+          // 升级过程暂时不进行位置上报和心跳包发送.
+          heartbeat_begin_tp = std::chrono::steady_clock::now();
+          report_begin_tp = std::chrono::steady_clock::now();
         } else if (msg_id == kPlatformGeneralResponse) {
           // 接收到平台应答后, 清除进出区域报警标志位.
           if ((parameter_.parse.respone_msg_id == kLocationReport) &&

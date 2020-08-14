@@ -44,6 +44,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <map>
 
 #include "packager.h"
 #include "parser.h"
@@ -96,6 +97,40 @@ class JT808Server {
     return service_is_running_;
   }
 
+  // 升级请求.
+  // Args:
+  //     socket:  客户端的socket.
+  //     upgrade_type: 升级类型.
+  //     path:  升级文件路径.
+  // Returns:
+  //     成功返回0, 失败返回-1.
+  int UpgradeRequest(decltype(socket(0, 0, 0)) const& socket,
+                     int const& upgrade_type,
+                     std::vector<uint8_t> const& manufacturer_id,
+                     std::string const& version_id,
+                     char const* path);
+  
+  // 升级请求.
+  // Args:
+  //     phone:  客户端的终端手机号.
+  //     upgrade_type: 升级类型.
+  //     path:  升级文件路径.
+  // Returns:
+  //     成功返回0, 失败返回-1.
+  int UpgradeRequestByPhoneNumber(std::string const& phone,
+                                  int const& upgrade_type,
+                                  std::vector<uint8_t> const& manufacturer_id,
+                                  std::string const& version_id,
+                                  char const* path) {
+    for (auto const& item : clients_) {
+      if (item.second.msg_head.phone_num == phone) {
+        return UpgradeRequest(item.first, upgrade_type,
+                              manufacturer_id, version_id, path);
+      }
+    }
+    return -1;
+  }
+
   // 通用消息封装和发送函数.
   // Args:
   //     socket:  客户端的socket.
@@ -139,6 +174,8 @@ class JT808Server {
   Parser parser_;  // 通用JT808协议解析器.
   // 客户端的socket(key)-客户端的协议参数(value).
   std::map<decltype(socket(0, 0, 0)), ProtocolParameter> clients_;
+  // 处于升级状态的客户端连接.
+  std::map<decltype(socket(0, 0, 0)), int> is_upgrading_clients_;
 };
 
 }  // namespace libjt808

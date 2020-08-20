@@ -55,11 +55,16 @@ int JT808FramePackagerInit(Packager* packager);
 // 额外增加封装器支持命令.
 bool JT808FramePackagerAppend(
     Packager* packager, std::pair<uint16_t, PackageHandler> const& pair);
-
-// 额外增加封装器支持命令.
 bool JT808FramePackagerAppend(Packager* packager,
                               uint16_t const& msg_id,
                               PackageHandler const& handler);
+
+// 重写封装器支持命令.
+bool JT808FramePackagerOverride(
+    Packager* packager, std::pair<uint16_t, PackageHandler> const& pair);
+bool JT808FramePackagerOverride(Packager* packager,
+                                uint16_t const& msg_id,
+                                PackageHandler const& handler);
 
 // 封装命令.
 int JT808FramePackage(Packager const& packager,

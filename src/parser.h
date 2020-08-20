@@ -56,11 +56,16 @@ int JT808FrameParserInit(Parser* parser);
 // 额外增加解析器支持命令.
 bool JT808FrameParserAppend(
     Parser* parser, std::pair<uint16_t, ParseHandler> const& pair);
-
-// 额外增加解析器支持命令.
 bool JT808FrameParserAppend(Parser* parser,
                             uint16_t const& msg_id,
                             ParseHandler const& handler);
+
+// 重写解析器支持命令.
+bool JT808FrameParserOverride(
+    Parser* parser, std::pair<uint16_t, ParseHandler> const& pair);
+bool JT808FrameParserOverride(Parser* parser,
+                              uint16_t const& msg_id,
+                              ParseHandler const& handler);
 
 // 解析命令.
 int JT808FrameParse(Parser const& parser,

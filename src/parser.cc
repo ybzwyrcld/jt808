@@ -605,6 +605,33 @@ bool JT808FrameParserAppend(Parser* parser,
   return parser->insert(std::make_pair(msg_id, handler)).second;
 }
 
+// 重写解析器支持命令.
+bool JT808FrameParserOverride(
+    Parser* parser, std::pair<uint16_t, ParseHandler> const& pair) {
+  if (parser == nullptr) return false;
+  for (auto const& item: *parser) {
+    if (item.first == pair.first) {
+      parser->erase(item.first);
+      break;
+    }
+  }
+  return parser->insert(pair).second;
+}
+
+// 重写解析器支持命令.
+bool JT808FrameParserOverride(Parser* parser,
+                              uint16_t const& msg_id,
+                              ParseHandler const& handler) {
+  if (parser == nullptr) return false;
+  for (auto const& item: *parser) {
+    if (item.first == msg_id) {
+      parser->erase(item.first);
+      break;
+    }
+  }
+  return parser->insert(std::make_pair(msg_id, handler)).second;
+}
+
 // 解析命令.
 int JT808FrameParse(Parser const& parser,
                     std::vector<uint8_t> const& in,

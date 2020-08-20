@@ -97,6 +97,29 @@ class JT808Server {
     return service_is_running_;
   }
 
+  //
+  //  外部获取和设置当前的通用消息体解析和封装函数, 用于重写或新增命令支持.
+  //  必须在调用Init()成员函数后才可以使用.
+  //
+  // 获取通用JT808协议封装器.
+  Packager& packager(void) { return packager_; }
+  Packager const& packager(void) const { return packager_; }
+  void packager(Packager* packager) const {
+    if (packager == nullptr) return;
+    *packager = packager_;
+  }
+  // 设置通用JT808协议封装器.
+  void set_packager(Packager const& packager) { packager_ = packager; }
+  // 获取通用JT808协议解析器.
+  Parser& parser(void) { return parser_; }
+  Parser const& parser(void) const {  return parser_; }
+  void parser(Parser* parser) const {
+    if (parser == nullptr) return;
+    *parser = parser_;
+  }
+  // 设置通用JT808协议解析器.
+  void set_parser(Parser const& parser) { parser_ = parser; }
+
   // 升级请求.
   // Args:
   //     socket:  客户端的socket.

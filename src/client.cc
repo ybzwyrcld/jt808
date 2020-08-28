@@ -303,6 +303,9 @@ void JT808Client::ThreadHandler(void) {
               parameter_.terminal_parameters.insert(it);
             }
           }
+          // 应答成功.
+          parameter_.respone_result = kSuccess;
+          PackagingAndSendMessage(kTerminalGeneralResponse);
           // 调用回调函数.
           terminal_parameter_callback_();
         } else if (msg_id == kGetTerminalParameters ||
@@ -316,6 +319,9 @@ void JT808Client::ThreadHandler(void) {
           PackagingAndSendMessage(kGetTerminalParametersResponse);
         } else if (msg_id == kSetPolygonArea) {  // 设置矩形区域.
           UpdatePolygonAreaByArea(parameter_.polygon_area);
+          // 应答成功.
+          parameter_.respone_result = kSuccess;
+          PackagingAndSendMessage(kTerminalGeneralResponse);
           // 调用回调函数.
           polygon_area_callback_();
         } else if (msg_id == kDeletePolygonArea) {  // 删除矩形区域.

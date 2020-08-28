@@ -277,8 +277,8 @@ void JT808Client::ThreadHandler(void) {
         std::chrono::milliseconds>(end_tp - heartbeat_begin_tp).count();
   int64_t heartbeat_intv;
   uint32_t temp;
-  // 从终端参数中获取心跳包时间间隔, 若未找到则使用默认60秒(s)心跳.
-  if (GetTerminalHeartbeatInterval(&temp) == 0) {
+  // 从终端参数中获取心跳包时间间隔, 若未找到或值为0则使用默认60秒(s)心跳.
+  if ((GetTerminalHeartbeatInterval(&temp) == 0) && (temp > 0)) {
     heartbeat_intv = temp * 1000;
   } else {
     heartbeat_intv = 60000;  // 60s.

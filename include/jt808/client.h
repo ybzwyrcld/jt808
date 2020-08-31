@@ -235,7 +235,7 @@ class JT808Client {
     parameter_.location_info.latitude = static_cast<uint32_t>(latitude*1e6);
     parameter_.location_info.longitude = static_cast<uint32_t>(longitude*1e6);
     parameter_.location_info.altitude = static_cast<uint16_t>(altitude);
-    parameter_.location_info.speed = static_cast<uint16_t>(speed/10);
+    parameter_.location_info.speed = static_cast<uint16_t>(speed*10);
     parameter_.location_info.bearing = static_cast<uint16_t>(bearing);
     parameter_.location_info.time.assign(timestamp.begin(), timestamp.end());
   }

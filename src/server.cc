@@ -61,7 +61,7 @@ void PrintLocationReportInfo(ProtocolParameter const& para) {
   printf("  latitude: %.6lf\n", basic_info.latitude*1e-6);
   printf("  longitude: %.6lf\n", basic_info.longitude*1e-6);
   printf("  atitude: %d\n", basic_info.altitude);
-  printf("  speed: %d\n", basic_info.speed*10);
+  printf("  speed: %f\n", basic_info.speed/10.0f);
   printf("  bearing: %d\n", basic_info.bearing);
   printf("  time: %s\n", basic_info.time.c_str());
   printf("  location extension:\n");

@@ -153,11 +153,19 @@ int JT808Client::JT808ConnectionAuthentication(void) {
   // 注册.
   //
   // 生成并发送注册消息.
-  if (PackagingAndSendMessage(kTerminalRegister) < 0) return -1;
+  if (PackagingAndSendMessage(kTerminalRegister) < 0) {
+    Close(client_);
+    is_connected_ = false;
+    return -1;
+  }
   // 从注册应答消息中解析出注册结果和鉴权码.
   parameter_.parse.respone_result = kTerminalHaveBeenRegistered;
   parameter_.parse.authentication_code.clear();
-  if (ReceiveAndParseMessage(5) < 0) return -1;
+  if (ReceiveAndParseMessage(5) < 0) {
+    Close(client_);
+    is_connected_.store(false);
+    return -1;
+  }
   // 检查注册结果.
   if ((parameter_.parse.msg_head.msg_id != kTerminalRegisterResponse) ||
       (parameter_.parse.respone_result != kRegisterSuccess)) {
@@ -167,13 +175,23 @@ int JT808Client::JT808ConnectionAuthentication(void) {
   // 鉴权.
   //
   // 生成并发送鉴权消息.
-  if (PackagingAndSendMessage(kTerminalAuthentication) < 0) return -1;
+  if (PackagingAndSendMessage(kTerminalAuthentication) < 0) {
+    Close(client_);
+    is_connected_.store(false);
+    return -1;
+  }
   // 从通用应答中解析出鉴权结果.
   parameter_.parse.respone_result = kFailure;
-  if (ReceiveAndParseMessage(5) < 0) return -1;
+  if (ReceiveAndParseMessage(5) < 0) {
+    Close(client_);
+    is_connected_.store(false);
+    return -1;
+  }
   // 检查鉴权结果.
   if ((parameter_.parse.respone_msg_id != kTerminalAuthentication) ||
       (parameter_.parse.respone_result != kSuccess)) {
+    Close(client_);
+    is_connected_.store(false);
     return -1;
   }
   is_authenticated_.store(true);
@@ -214,6 +232,9 @@ int JT808Client::PackagingAndSendMessage(uint32_t const& msg_id) {
     printf("%s[%d]: Package message failed !!!\n", __FUNCTION__, __LINE__);
     return -1;
   }
+  // printf("JT808 Send[%d]: ", msg.size());
+  // for (auto const& uch : msg) printf("%02X ", uch);
+  // printf("\n");
   ++parameter_.msg_head.msg_flow_num;  // 每正确生成一条命令, 消息流水号增加1.
   if (Send(client_, reinterpret_cast<char*>(msg.data()), msg.size(), 0) <= 0) {
     printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);
@@ -253,6 +274,9 @@ int JT808Client::ReceiveAndParseMessage(int const& timeout) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
   if (msg.empty()) return -1;
+  // printf("JT808 Recv[%d]: ", msg.size());
+  // for (auto const& uch : msg) printf("%02X ", uch);
+  // printf("\n");
   // 解析消息.
   if (JT808FrameParse(parser_, msg, &parameter_) == -1) {
     printf("%s[%d]: Parse message failed !!!\n", __FUNCTION__, __LINE__);
@@ -291,6 +315,9 @@ void JT808Client::ThreadHandler(void) {
   while (service_is_running_) {
     if ((ret = Recv(client_, buffer.get(), 4096, 0)) > 0) {
       msg.assign(buffer.get(), buffer.get()+ret);
+      // printf("JT808 Recv[%d]: ", msg.size());
+      // for (auto const& uch : msg) printf("%02X ", uch);
+      // printf("\n");
       if (JT808FrameParse(parser_, msg, &parameter_) == 0) {
         auto const& msg_id = parameter_.parse.msg_head.msg_id;
         if (msg_id == kSetTerminalParameters) {  // 设置终端参数.
@@ -305,7 +332,9 @@ void JT808Client::ThreadHandler(void) {
           }
           // 应答成功.
           parameter_.respone_result = kSuccess;
-          PackagingAndSendMessage(kTerminalGeneralResponse);
+          if (PackagingAndSendMessage(kTerminalGeneralResponse) < 0) {
+            break;
+          }
           // 调用回调函数.
           terminal_parameter_callback_();
         } else if (msg_id == kGetTerminalParameters ||
@@ -316,12 +345,16 @@ void JT808Client::ThreadHandler(void) {
           } else {  // 返回指定参数.
             parameter_.terminal_parameter_ids.assign(ids.begin(), ids.end());
           }
-          PackagingAndSendMessage(kGetTerminalParametersResponse);
+          if (PackagingAndSendMessage(kGetTerminalParametersResponse) < 0) {
+            break;
+          }
         } else if (msg_id == kSetPolygonArea) {  // 设置矩形区域.
           UpdatePolygonAreaByArea(parameter_.polygon_area);
           // 应答成功.
           parameter_.respone_result = kSuccess;
-          PackagingAndSendMessage(kTerminalGeneralResponse);
+          if (PackagingAndSendMessage(kTerminalGeneralResponse) < 0) {
+            break;
+          }
           // 调用回调函数.
           polygon_area_callback_();
         } else if (msg_id == kDeletePolygonArea) {  // 删除矩形区域.
@@ -349,7 +382,9 @@ void JT808Client::ThreadHandler(void) {
                    packet_size);
             total_size += packet_size;
             parameter_.respone_result = kSuccess;
-            PackagingAndSendMessage(kTerminalGeneralResponse);
+            if (PackagingAndSendMessage(kTerminalGeneralResponse) < 0) {
+              break;
+            }
             // 等待所有数据传输完成.
             if (msg_head.packet_seq == msg_head.total_packet) {
               upgrade_callback_(upgrade_info.upgrade_type,
@@ -358,11 +393,15 @@ void JT808Client::ThreadHandler(void) {
               upgrade_buffer.release();
               // 暂时直接返回升级结果.
               parameter_.respone_result = kTerminalUpgradeSuccess;
-              PackagingAndSendMessage(kTerminalUpgradeResultReport);
+              if (PackagingAndSendMessage(kTerminalUpgradeResultReport) < 0) {
+                break;
+              }
             }
           } else {
             parameter_.respone_result = kSuccess;
-            PackagingAndSendMessage(kTerminalGeneralResponse);
+            if (PackagingAndSendMessage(kTerminalGeneralResponse) < 0) {
+              break;
+            }
             upgrade_callback_(upgrade_info.upgrade_type,
                               reinterpret_cast<char const*>(
                                   upgrade_info.upgrade_data.data()),
@@ -370,7 +409,9 @@ void JT808Client::ThreadHandler(void) {
                                   upgrade_info.upgrade_data.size()));
             // 暂时直接返回升级结果.
             parameter_.respone_result = kTerminalUpgradeSuccess;
-            PackagingAndSendMessage(kTerminalUpgradeResultReport);
+            if (PackagingAndSendMessage(kTerminalUpgradeResultReport) < 0) {
+              break;
+            }
           }
           // 升级过程暂时不进行位置上报和心跳包发送.
           heartbeat_begin_tp = std::chrono::steady_clock::now();

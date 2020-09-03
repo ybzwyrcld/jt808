@@ -30,6 +30,7 @@
 #include <iostream>
 #include <fstream>
 #include <thread>
+#include <chrono>
 
 #include "jt808/client.h"
 
@@ -72,6 +73,23 @@ void UpdateGNSSPositioningSolutionStatus(
   }
 }
 
+std::string TimestampToString(int64_t const& timestamp) {
+  struct tm tm_now;
+  auto tt = static_cast<time_t>(timestamp);
+  localtime_r(&tt, &tm_now);
+  char date[16] = {0};
+  snprintf(date, sizeof(date)-1, "%02d%02d%02d%02d%02d%02d",
+		       (tm_now.tm_year+1900)/100, tm_now.tm_mon + 1, tm_now.tm_mday,
+		       tm_now.tm_hour, tm_now.tm_min, tm_now.tm_sec);
+  return std::string(date);
+}
+
+std::string GetTime(void) {
+  return TimestampToString(
+      std::chrono::duration_cast<std::chrono::seconds>(
+          std::chrono::system_clock::now().time_since_epoch()).count());
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -82,7 +100,7 @@ int main(int argc, char **argv) {
   client.set_location_report_inteval(10);
   if ((client.ConnectRemote() == 0) &&
       (client.JT808ConnectionAuthentication() == 0)) {
-    client.UpdateLocation(22.570336, 113.937577, 54.0, 60, 0, "200702145429");
+    client.UpdateLocation(22.570336, 113.937577, 54.0f, 60, 0, GetTime());
     libjt808::StatusBit status_bit {};
     status_bit.bit.positioning = 1;  // 已成功定位.
     client.SetStatusBit(status_bit.value);
@@ -101,8 +119,22 @@ int main(int argc, char **argv) {
     });
     client.Run();
     std::this_thread::sleep_for(std::chrono::seconds(1));
+    uint32_t pos_flag = 0;
+    auto tp_beg = std::chrono::steady_clock::now();
+    auto tp_end = tp_beg;
     while (client.service_is_running()) {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+      // 模拟定位模块1s更新一次定位数据.
+      tp_end = std::chrono::steady_clock::now();
+      if (std::chrono::duration_cast<std::chrono::seconds>(tp_end-tp_beg).count() >= 1) {
+        tp_beg = tp_end;
+        if ((++pos_flag / 10) % 2 == 0) {
+          client.UpdateLocation(22.570336, 113.937577, 54.0f, 60, 0, GetTime());
+        } else {
+          client.UpdateLocation(22.570336, 113.938577, 54.0f, 60, 0, GetTime());
+        }
+      } else {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      }
     }
     client.Stop();
   }

@@ -189,7 +189,6 @@ int JT808FrameParserInit(Parser* parser) {
         if (para->parse.respone_result == 0) {
           auto begin = in.begin()+pos+3;
           auto end = begin + para->parse.msg_head.msgbody_attr.bit.msglen-3;
-          para->parse.authentication_code.clear();
           para->parse.authentication_code.assign(begin, end);
         }
         return 0;
@@ -213,7 +212,6 @@ int JT808FrameParserInit(Parser* parser) {
         // 提取鉴权码.
         auto begin = in.begin() + pos;
         auto end = begin + para->parse.msg_head.msgbody_attr.bit.msglen;
-        para->parse.authentication_code.clear();
         para->parse.authentication_code.assign(begin, end);
         return 0;
       }
@@ -235,15 +233,15 @@ int JT808FrameParserInit(Parser* parser) {
         uint32_t id = 0;
         std::vector<uint8_t> value;
         auto& paras = para->parse.terminal_parameters;
+        paras.clear();
         for (int i = 0; i < cnt; ++i) {
           // 参数ID.
           memcpy(u32converter.u8array, &(in[pos]), 4);
           id = EndianSwap32(u32converter.u32val);
           pos += 4;
           // 参数值.
-          value.clear();
           value.assign(in.begin()+pos+1, in.begin()+pos+1+in[pos]);
-          paras.insert(std::make_pair(id, value));
+          paras.insert({id, value});
           pos += 1 + in[pos];
         }
         return 0;
@@ -309,15 +307,15 @@ int JT808FrameParserInit(Parser* parser) {
         uint32_t id = 0;
         std::vector<uint8_t> value;
         auto& paras = para->parse.terminal_parameters;
+        paras.clear();
         for (int i = 0; i < cnt; ++i) {
           // 参数ID.
           memcpy(u32converter.u8array, &(in[pos]), 4);
           id = EndianSwap32(u32converter.u32val);
           pos += 4;
           // 参数值.
-          value.clear();
           value.assign(in.begin()+pos+1, in.begin()+pos+1+in[pos]);
-          paras.insert(std::make_pair(id, value));
+          paras.insert({id, value});
           pos += 1 + in[pos];
         }
         return 0;
@@ -349,7 +347,6 @@ int JT808FrameParserInit(Parser* parser) {
         uint16_t content_len = in[pos]*256+in[pos+1];
         pos += 2;
         if (content_len+9+upgrade_info.version_id.size() > msg_len) return -1;
-        upgrade_info.upgrade_data.clear();
         upgrade_info.upgrade_data.assign(in.begin()+pos, in.begin()+pos+content_len);
         return 0;
       }
@@ -534,7 +531,6 @@ int JT808FrameParserInit(Parser* parser) {
           bcd.assign(in.begin()+pos, in.begin()+pos);
           BcdToStringFillZero(bcd, &polygon_area.start_time);
           pos += 6;
-          bcd.clear();
           bcd.assign(in.begin()+pos, in.begin()+pos);
           BcdToStringFillZero(bcd, &polygon_area.stop_time);
           pos += 6;
@@ -601,8 +597,7 @@ bool JT808FrameParserAppend(
 bool JT808FrameParserAppend(Parser* parser,
                             uint16_t const& msg_id,
                             ParseHandler const& handler) {
-  if (parser == nullptr) return false;
-  return parser->insert(std::make_pair(msg_id, handler)).second;
+  return JT808FrameParserAppend(parser, {msg_id, handler});
 }
 
 // 重写解析器支持命令.
@@ -622,14 +617,7 @@ bool JT808FrameParserOverride(
 bool JT808FrameParserOverride(Parser* parser,
                               uint16_t const& msg_id,
                               ParseHandler const& handler) {
-  if (parser == nullptr) return false;
-  for (auto const& item: *parser) {
-    if (item.first == msg_id) {
-      parser->erase(item.first);
-      break;
-    }
-  }
-  return parser->insert(std::make_pair(msg_id, handler)).second;
+  return JT808FrameParserOverride(parser, {msg_id, handler});
 }
 
 // 解析命令.

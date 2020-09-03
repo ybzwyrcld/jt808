@@ -648,8 +648,7 @@ bool JT808FramePackagerAppend(
 bool JT808FramePackagerAppend(Packager* packager,
                               uint16_t const& msg_id,
                               PackageHandler const& handler) {
-  if (packager == nullptr) return false;
-  return packager->insert(std::make_pair(msg_id, handler)).second;
+  return JT808FramePackagerAppend(packager, {msg_id, handler});
 }
 
 // 重写封装器支持命令.
@@ -669,14 +668,7 @@ bool JT808FramePackagerOverride(
 bool JT808FramePackagerOverride(Packager* packager,
                                 uint16_t const& msg_id,
                                 PackageHandler const& handler) {
-  if (packager == nullptr) return false;
-  for (auto const& item : *packager) {
-    if (item.first == msg_id) {
-      packager->erase(item.first);
-      break;
-    }
-  }
-  return packager->insert(std::make_pair(msg_id, handler)).second;
+  return JT808FramePackagerOverride(packager, {msg_id, handler});
 }
 
 // 封装命令.

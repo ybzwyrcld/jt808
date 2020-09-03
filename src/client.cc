@@ -53,7 +53,7 @@ const RegisterInfo kRegisterInfo = {
   std::vector<uint8_t>{'S', 'K', '9', '1', '5', '1'},
   std::vector<uint8_t>{'0', '0', '0', '0', '0', '1'},
   kBlue,
-  "粤B99999",
+  "\xD4\xC1\x42\x31\x32\x33\x34\x35",  // "粤B12345".
 };
 
 }  // namespace

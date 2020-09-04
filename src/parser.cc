@@ -543,9 +543,12 @@ int JT808FrameParserInit(Parser* parser) {
           polygon_area.overspeed_time = in[pos];
           ++pos;
         }
-        ++pos;
+        // 顶点数.
+        memcpy(u16converter.u8array, &(in[pos]), 2);
+        uint16_t cnt = EndianSwap16(u16converter.u16val);
+        pos += 2;
         // 检查后续内容长度.
-        if (end-pos != in[pos-1]*8) return -1;
+        if (end-pos != cnt*8) return -1;
         LocationPoint location_point {};
         polygon_area.vertices.clear();
         // 所有顶点经纬度.

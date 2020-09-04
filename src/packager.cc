@@ -598,8 +598,9 @@ int JT808FramePackagerInit(Packager* packager) {
           msg_len += 3;
         }
         // 顶点个数.
-        out->push_back(polygon_area.vertices.size());
-        ++msg_len;
+        u16converter.u16val = polygon_area.vertices.size();
+        for (int i = 0; i < 2; ++i) out->push_back(u16converter.u8array[1-i]);
+        msg_len += 2;
         // 所有顶点经纬度.
         for (auto const& vertex: polygon_area.vertices) {
           // 纬度.

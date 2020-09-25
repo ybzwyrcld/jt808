@@ -75,3 +75,12 @@ target_link_libraries(jt808_server
   jt808
   pthread
 )
+
+add_executable(jt808_1hz_location_report_client
+  jt808_client.cc
+)
+add_dependencies(jt808_1hz_location_report_client jt808)
+target_link_libraries(jt808_1hz_location_report_client
+  jt808
+  pthread
+)

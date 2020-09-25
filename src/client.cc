@@ -89,6 +89,7 @@ void JT808Client::Init(void) {
   is_connected_.store(false);
   is_authenticated_.store(false);
   service_is_running_.store(false);
+  location_report_msg_generate_outside_.store(false);
 }
 
 // 与远程服务器建立TCP连接, 并设置socket为非阻塞模式.
@@ -219,6 +220,19 @@ void JT808Client::Stop(void) {
   }
 }
 
+void JT808Client::GenerateLocationReportMsgNow(void) {
+  // printf("timestamp: %s\n", parameter_.location_info.time.c_str());
+  std::vector<uint8_t> msg;
+  if (PackagingMessage(kLocationReport, &msg) < 0) {
+    printf("%s[%d]: Package message failed !!!\n", __FUNCTION__, __LINE__);
+    return;
+  }
+  if (location_report_msg_.size() > 10000) {
+    location_report_msg_.pop_front();
+  }
+  location_report_msg_.push_back(std::move(msg));
+}
+
 // 根据提供的消息ID以及调用前此函数前对参数的设定, 生成对应的JT808格式消息,
 // 并通过socket发送到服务端.
 int JT808Client::PackagingAndSendMessage(uint32_t const& msg_id) {
@@ -227,15 +241,10 @@ int JT808Client::PackagingAndSendMessage(uint32_t const& msg_id) {
     return -1;
   }
   std::vector<uint8_t> msg;
-  parameter_.msg_head.msg_id = msg_id;  // 设置消息ID.
-  if (JT808FramePackage(packager_, parameter_, &msg) < 0) {
+  if (PackagingMessage(msg_id, &msg) < 0) {
     printf("%s[%d]: Package message failed !!!\n", __FUNCTION__, __LINE__);
     return -1;
   }
-  // printf("JT808 Send[%d]: ", msg.size());
-  // for (auto const& uch : msg) printf("%02X ", uch);
-  // printf("\n");
-  ++parameter_.msg_head.msg_flow_num;  // 每正确生成一条命令, 消息流水号增加1.
   if (Send(client_, reinterpret_cast<char*>(msg.data()), msg.size(), 0) <= 0) {
     printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);
     return -1;
@@ -257,6 +266,7 @@ int JT808Client::ReceiveAndParseMessage(int const& timeout) {
       new char[4096], std::default_delete<char[]>());
   while (1) {
     if ((ret = Recv(client_, buffer.get(), 4096, 0)) > 0) {
+      // TODO(mengyuming@hotmail.com): 需要处理TCP粘包.
       msg.assign(buffer.get(), buffer.get()+ret);
       break;
     } else if (ret == 0) {
@@ -274,7 +284,7 @@ int JT808Client::ReceiveAndParseMessage(int const& timeout) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
   if (msg.empty()) return -1;
-  // printf("JT808 Recv[%d]: ", msg.size());
+  // printf("JT808 Recv[%d]: ", static_cast<int>(msg.size()));
   // for (auto const& uch : msg) printf("%02X ", uch);
   // printf("\n");
   // 解析消息.
@@ -285,10 +295,60 @@ int JT808Client::ReceiveAndParseMessage(int const& timeout) {
   return 0;
 }
 
+int JT808Client::PackagingMessage(uint32_t const& msg_id,
+                                  std::vector<uint8_t>* out) {
+  if (out == nullptr) return -1;
+  std::unique_lock<std::mutex> lock(msg_generate_mutex_);
+  parameter_.msg_head.msg_id = msg_id;  // 设置消息ID.
+  if (JT808FramePackage(packager_, parameter_, out) < 0) {
+    printf("%s[%d]: Package message failed !!!\n", __FUNCTION__, __LINE__);
+    return -1;
+  }
+  ++parameter_.msg_head.msg_flow_num;  // 每正确生成一条命令, 消息流水号增加1.
+  lock.unlock();
+  return 0;
+}
+
+int JT808Client::PackagingGeneralMessage(uint32_t const& msg_id) {
+  std::vector<uint8_t> msg;
+  PackagingMessage(msg_id, &msg);
+  if (PackagingMessage(msg_id, &msg) != 0) {
+    return -1;
+  }
+  if (general_msg_.size() > 100) {
+    general_msg_.pop_front();
+  }
+  general_msg_.push_back(std::move(msg));
+  return 0;
+}
+
 // 服务端通信线程, 解析接收到的命令, 同时自动进行位置信息上报和心跳包的发送.
 void JT808Client::ThreadHandler(void) {
   service_is_running_.store(true);
-  int ret = -1;
+  std::atomic_bool send_running;
+  std::atomic_bool recv_running;
+  send_running.store(false);
+  recv_running.store(false);
+  while (service_is_running_) {
+    if (!send_running) {
+      std::thread(&JT808Client::SendHandler, this, &send_running).detach();
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    if (!recv_running) {
+      std::thread(&JT808Client::ReceiveHandler, this, &recv_running).detach();
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  }
+  // 线程终止.
+  send_running.store(false);
+  recv_running.store(false);
+  service_is_running_.store(false);
+  Stop();
+}
+
+void JT808Client::SendHandler(std::atomic_bool *const running) {
+  running->store(true);
   int64_t report_intv = location_report_inteval_*1000;  // 时间间隔, ms.
   std::unique_ptr<char[]> buffer(
       new char[4096], std::default_delete<char[]>());
@@ -307,15 +367,89 @@ void JT808Client::ThreadHandler(void) {
   } else {
     heartbeat_intv = 60000;  // 60s.
   }
-  std::vector<uint8_t> msg;
   bool first_report = true;
+  while (*running) {
+    end_tp = std::chrono::steady_clock::now();
+    // 优先发送应答消息.
+    if (!general_msg_.empty()) {
+      for (auto& msg : general_msg_) {
+        if (Send(client_, reinterpret_cast<char*>(msg.data()),
+                 msg.size(), 0) <= 0) {
+          printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);
+          break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
+      general_msg_.clear();
+      heartbeat_begin_tp = end_tp;  // 重置心跳检测时间.
+    }
+    // 到达时间间隔或有立即上报的标志时进行位置信息汇报.
+    // 外部生成上报消息, 交由内部进行上报.
+    if (!location_report_msg_.empty()) {
+      for (auto& msg : location_report_msg_) {
+        if (Send(client_, reinterpret_cast<char*>(msg.data()),
+                 msg.size(), 0) <= 0) {
+          printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);
+          service_is_running_.store(false);
+          break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
+      location_report_msg_.clear();
+      report_begin_tp = end_tp;
+      heartbeat_begin_tp = end_tp;  // 重置心跳检测时间.
+    }
+    // 上次发送位置上报消息到此时的时间差.
+    report_time_lag = std::chrono::duration_cast<
+        std::chrono::milliseconds>(end_tp - report_begin_tp).count();
+    // 上次发送心跳包到此时的时间差.
+    heartbeat_time_lag = std::chrono::duration_cast<
+        std::chrono::milliseconds>(end_tp - heartbeat_begin_tp).count();
+    // 到达时间间隔或有立即上报的标志时进行位置信息汇报.
+    // 外部生成上报消息, 交由内部进行上报.
+    if (!location_report_msg_generate_outside_ &&
+        (report_time_lag >= report_intv ||
+         location_report_immediately_flag_)) {
+      // 首次上报需要等到成功定位后再进行, 再此期间可以进行心跳包发送.
+      if (parameter_.location_info.status.bit.positioning == 0) {
+        if (first_report) {
+          if (heartbeat_time_lag >= heartbeat_intv) {
+            heartbeat_begin_tp = end_tp;
+            PackagingGeneralMessage(kTerminalHeartBeat);
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+          continue;
+        }
+      }
+      if (first_report) first_report = false;
+      location_report_immediately_flag_ = 0;
+      report_begin_tp = end_tp;
+      heartbeat_begin_tp = end_tp;  // 进行位置汇报后重置心跳检测时间.
+      GenerateLocationReportMsgNow();
+    } else if (heartbeat_time_lag >= heartbeat_intv) {
+      heartbeat_begin_tp = end_tp;
+      PackagingGeneralMessage(kTerminalHeartBeat);
+    } else {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  }
+  running->store(false);
+}
+
+void JT808Client::ReceiveHandler(std::atomic_bool *const running) {
+  running->store(true);
+  int ret = -1;
+  std::unique_ptr<char[]> buffer(
+      new char[4096], std::default_delete<char[]>());
+  std::vector<uint8_t> msg;
   std::unique_ptr<char[]> upgrade_buffer;
   int total_size = 0;
   int packet_max_size = 0;
-  while (service_is_running_) {
+  while (*running) {
     if ((ret = Recv(client_, buffer.get(), 4096, 0)) > 0) {
+      // TODO(mengyuming@hotmail.com): 需要处理TCP粘包.
       msg.assign(buffer.get(), buffer.get()+ret);
-      // printf("JT808 Recv[%d]: ", msg.size());
+      // printf("JT808 Recv[%d]: ", static_cast<int>(msg.size()));
       // for (auto const& uch : msg) printf("%02X ", uch);
       // printf("\n");
       if (JT808FrameParse(parser_, msg, &parameter_) == 0) {
@@ -332,9 +466,7 @@ void JT808Client::ThreadHandler(void) {
           }
           // 应答成功.
           parameter_.respone_result = kSuccess;
-          if (PackagingAndSendMessage(kTerminalGeneralResponse) < 0) {
-            break;
-          }
+          PackagingGeneralMessage(kTerminalGeneralResponse);
           // 调用回调函数.
           terminal_parameter_callback_();
         } else if (msg_id == kGetTerminalParameters ||
@@ -345,20 +477,20 @@ void JT808Client::ThreadHandler(void) {
           } else {  // 返回指定参数.
             parameter_.terminal_parameter_ids.assign(ids.begin(), ids.end());
           }
-          if (PackagingAndSendMessage(kGetTerminalParametersResponse) < 0) {
-            break;
-          }
+          PackagingGeneralMessage(kGetTerminalParametersResponse);
         } else if (msg_id == kSetPolygonArea) {  // 设置矩形区域.
           UpdatePolygonAreaByArea(parameter_.polygon_area);
           // 应答成功.
           parameter_.respone_result = kSuccess;
-          if (PackagingAndSendMessage(kTerminalGeneralResponse) < 0) {
-            break;
-          }
+          PackagingMessage(kTerminalGeneralResponse, &msg);
+          general_msg_.push_back(msg);
           // 调用回调函数.
           polygon_area_callback_();
         } else if (msg_id == kDeletePolygonArea) {  // 删除矩形区域.
           DeletePolygonAreaByIDs(parameter_.polygon_area_id);
+          // 应答成功.
+          parameter_.respone_result = kSuccess;
+          PackagingGeneralMessage(kTerminalGeneralResponse);
           // 调用回调函数.
           polygon_area_callback_();
         } else if (msg_id == kTerminalUpgrade) {  // 下发终端升级包.
@@ -382,9 +514,7 @@ void JT808Client::ThreadHandler(void) {
                    packet_size);
             total_size += packet_size;
             parameter_.respone_result = kSuccess;
-            if (PackagingAndSendMessage(kTerminalGeneralResponse) < 0) {
-              break;
-            }
+            PackagingGeneralMessage(kTerminalGeneralResponse);
             // 等待所有数据传输完成.
             if (msg_head.packet_seq == msg_head.total_packet) {
               upgrade_callback_(upgrade_info.upgrade_type,
@@ -393,15 +523,11 @@ void JT808Client::ThreadHandler(void) {
               upgrade_buffer.release();
               // 暂时直接返回升级结果.
               parameter_.respone_result = kTerminalUpgradeSuccess;
-              if (PackagingAndSendMessage(kTerminalUpgradeResultReport) < 0) {
-                break;
-              }
+              PackagingGeneralMessage(kTerminalUpgradeResultReport);
             }
           } else {
             parameter_.respone_result = kSuccess;
-            if (PackagingAndSendMessage(kTerminalGeneralResponse) < 0) {
-              break;
-            }
+            PackagingGeneralMessage(kTerminalGeneralResponse);
             upgrade_callback_(upgrade_info.upgrade_type,
                               reinterpret_cast<char const*>(
                                   upgrade_info.upgrade_data.data()),
@@ -409,13 +535,8 @@ void JT808Client::ThreadHandler(void) {
                                   upgrade_info.upgrade_data.size()));
             // 暂时直接返回升级结果.
             parameter_.respone_result = kTerminalUpgradeSuccess;
-            if (PackagingAndSendMessage(kTerminalUpgradeResultReport) < 0) {
-              break;
-            }
+            PackagingGeneralMessage(kTerminalUpgradeResultReport);
           }
-          // 升级过程暂时不进行位置上报和心跳包发送.
-          heartbeat_begin_tp = std::chrono::steady_clock::now();
-          report_begin_tp = std::chrono::steady_clock::now();
         } else if (msg_id == kPlatformGeneralResponse) {
           // 接收到平台应答后, 清除进出区域报警标志位.
           if ((parameter_.parse.respone_msg_id == kLocationReport) &&
@@ -426,45 +547,13 @@ void JT808Client::ThreadHandler(void) {
       }
     } else if (ret == 0) {
       printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
+      service_is_running_.store(false);
       break;
     } else {  // TODO(mengyuming@hotmail.com): 其它连接错误需处理.
-      // std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-    end_tp = std::chrono::steady_clock::now();
-    // 上次发送位置上报消息到此时的时间差.
-    report_time_lag = std::chrono::duration_cast<
-        std::chrono::milliseconds>(end_tp - report_begin_tp).count();
-    // 上次发送心跳包到此时的时间差.
-    heartbeat_time_lag = std::chrono::duration_cast<
-        std::chrono::milliseconds>(end_tp - heartbeat_begin_tp).count();
-    // 到达时间间隔或有立即上报的标志时进行位置信息汇报.
-    if (report_time_lag >= report_intv || location_report_immediately_flag_) {
-      // 首次上报需要等到成功定位后再进行, 再此期间可以进行心跳包发送.
-      if (parameter_.location_info.status.bit.positioning == 0) {
-        if (first_report) {
-          if (heartbeat_time_lag >= heartbeat_intv) {
-            heartbeat_begin_tp = end_tp;
-            PackagingAndSendMessage(kTerminalHeartBeat);
-          }
-          std::this_thread::sleep_for(std::chrono::milliseconds(100));
-          continue;
-        }
-      }
-      if (first_report) first_report = false;
-      location_report_immediately_flag_ = 0;
-      report_begin_tp = end_tp;
-      heartbeat_begin_tp = end_tp;  // 进行位置汇报后重置心跳检测时间.
-      PackagingAndSendMessage(kLocationReport);
-    } else if (heartbeat_time_lag >= heartbeat_intv) {
-      heartbeat_begin_tp = end_tp;
-      PackagingAndSendMessage(kTerminalHeartBeat);
-    } else {
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
-  // 线程终止.
-  service_is_running_.store(false);
-  Stop();
+  running->store(false);
 }
 
 }  // namespace libjt808

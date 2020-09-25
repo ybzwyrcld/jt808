@@ -43,6 +43,8 @@
 #include <functional>
 #include <string>
 #include <thread>
+#include <list>
+#include <mutex>
 
 #include "packager.h"
 #include "parser.h"
@@ -240,7 +242,7 @@ class JT808Client {
     parameter_.location_info.time.assign(timestamp.begin(), timestamp.end());
   }
   // 获取位置信息附加项.
-  int GetLocatiionExtension(LocationExtensions* items) {
+  int GetLocationExtension(LocationExtensions* items) {
     if (items == nullptr) return -1;
     items->clear();
     items->insert(parameter_.location_extension.begin(),
@@ -248,22 +250,31 @@ class JT808Client {
     return 0;
   }
   // 获取位置信息附加项.
-  LocationExtensions const& GetLocatiionExtension(void) const {
+  LocationExtensions const& GetLocationExtension(void) const {
     return parameter_.location_extension;
   }
   // 获取位置信息附加项.
-  LocationExtensions& GetLocatiionExtension(void) {
+  LocationExtensions& GetLocationExtension(void) {
     return parameter_.location_extension;
   }
   // 设置位置上报时间间隔.
-  void set_location_report_inteval(uint8_t const& intv) {
+  // 如果希望每次上报的数据更加准确, 需将msg_generate_outside设为true,
+  // 在解析完定位模块数据后调用GenerateLocationReportMsgNow()方法,
+  // 立刻生成当前时刻的位置上报信息.
+  void set_location_report_inteval(uint8_t const& intv,
+      bool const& msg_generate_outside = false) {
     location_report_inteval_ = intv;
+    location_report_msg_generate_outside_.store(
+        msg_generate_outside);
   }
   // 立即进行位置上报标志.
   enum ReportImmediatelyFlag {
-    kAlarmOccurred = 0x1,
-    kStateChanged = 0x2,
+    kAlarmOccurred = 0x1,  // 报警标志改变.
+    kStateChanged = 0x2,  // 状态标志改变.
   };
+  // 立刻生成一条位置上报消息.
+  // 仅在外部控制位置上报时调用.
+  void GenerateLocationReportMsgNow(void);
 
   //
   // 终端参数相关.
@@ -450,7 +461,7 @@ class JT808Client {
   }
   // 多边形区域回调函数.
   using PolygonAreaCallback = std::function<void (void/* 参数待定. */)>;
-  // 设置平台配置修改多边形区域时的回调函数.
+  // 设置平台配置修改多边形区域信息时的回调函数.
   void OnPolygonAreaUpdated(PolygonAreaCallback const& callback) {
     polygon_area_callback_ = callback;
   }
@@ -472,9 +483,20 @@ class JT808Client {
   int ReceiveAndParseMessage(int const& timeout);
 
  private:
-  // 与服务端通信线程.
+  // 生成一条消息.
+  int PackagingMessage(uint32_t const& msg_id, std::vector<uint8_t>* out);
+  // 生成一条消息, 存放在通用消息列表.
+  int PackagingGeneralMessage(uint32_t const& msg_id);
+  // 发送一条消息.
+  int SendMessage(std::vector<uint8_t> const& msg);
+  // 主线程处理函数.
   void ThreadHandler(void);
+  // 发送消息到服务端线程处理函数.
+  void SendHandler(std::atomic_bool *const running);
+  // 接收服务端消息线程处理函数.
+  void ReceiveHandler(std::atomic_bool *const running);
 
+  std::mutex msg_generate_mutex_;  // 消息生成互斥锁, 保证消息流水号唯一性.
   decltype(socket(0, 0, 0)) client_;  // 通用TCP连接socket.
   std::atomic_bool is_connected_;  // 与服务端TCP连接状态.
   std::atomic_bool is_authenticated_;  // 鉴权状态.
@@ -482,6 +504,7 @@ class JT808Client {
   int port_;  // 服务端端口.
   uint8_t location_report_inteval_;  // 位置信息上报时间间隔.
   uint16_t location_report_immediately_flag_;  // 立即进行位置上报标志.
+  std::atomic_bool location_report_msg_generate_outside_;  // 外部控制生成位置上报信息.
   std::thread service_thread_;  // 服务线程.
   std::atomic_bool service_is_running_;  // 服务线程运行标志.
   TerminalParameterCallback terminal_parameter_callback_;  // 修改终端参数回调函数.
@@ -489,8 +512,10 @@ class JT808Client {
   PolygonAreaCallback polygon_area_callback_;  // 修改多边形区域回调函数.
   Packager packager_;  // 通用JT808协议封装器.
   Parser parser_;  // 通用JT808协议解析器.
-  ProtocolParameter parameter_;  // JT808协议参数.
+  std::list<std::vector<uint8_t>> location_report_msg_;  // 位置上报消息列表.
+  std::list<std::vector<uint8_t>> general_msg_;  // 除位置上报消息外的消息列表.
   PolygonAreaSet polygon_areas_;  // 多边形区域信息集.
+  ProtocolParameter parameter_;  // JT808协议参数.
 };
 
 }  // namespace libjt808

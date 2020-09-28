@@ -355,34 +355,29 @@ int JT808FramePackagerInit(Packager* packager) {
   packager->insert(std::pair<uint16_t, PackageHandler>(kTerminalUpgrade,
       [] (ProtocolParameter const& para, std::vector<uint8_t>* out) {
         if (out == nullptr) return -1;
-        int msg_len = 0;
+        int msg_len = 11;
         // 升级类型.
         out->push_back(para.upgrade_info.upgrade_type);
-        ++msg_len;
         // 制造商ID.
         for (auto const& uch : para.upgrade_info.manufacturer_id) {
           out->push_back(uch);
         }
-        msg_len += 5;
         // 版本号长度.
         out->push_back(para.upgrade_info.version_id.size());
-        ++msg_len;
         // 版本号.
         for (auto const& ch : para.upgrade_info.version_id) {
           out->push_back(static_cast<uint8_t>(ch));
         }
         msg_len += para.upgrade_info.version_id.size();
         // 升级数据包长度.
-        uint16_t content_len = static_cast<uint16_t>(
-            para.upgrade_info.upgrade_data.size());
-        U16ToU8Array u16convert;
-        u16convert.u16val = EndianSwap16(content_len);
-        for (int i = 0; i < 2; ++i) out->push_back(u16convert.u8array[i]);
-        msg_len += 2;
+        uint32_t content_len = para.upgrade_info.upgrade_data_total_len;
+        U32ToU8Array u32convert;
+        u32convert.u32val = EndianSwap32(content_len);
+        for (int i = 0; i < 4; ++i) out->push_back(u32convert.u8array[i]);
         // 升级数据包.
         out->insert(out->end(), para.upgrade_info.upgrade_data.begin(),
                     para.upgrade_info.upgrade_data.end());
-        msg_len += content_len;
+        msg_len += para.upgrade_info.upgrade_data.size();
         return msg_len;
       }
   ));

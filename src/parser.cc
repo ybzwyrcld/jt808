@@ -329,6 +329,7 @@ int JT808FrameParserInit(Parser* parser) {
         uint16_t pos = MSGBODY_NOPACKET_POS;
         if (para->parse.msg_head.msgbody_attr.bit.packet == 1)
           pos = MSGBODY_PACKET_POS;
+        uint16_t beg = pos;
         auto& upgrade_info = para->parse.upgrade_info;
         // 升级类型.
         upgrade_info.upgrade_type = in[pos++];
@@ -343,11 +344,17 @@ int JT808FrameParserInit(Parser* parser) {
           upgrade_info.version_id.push_back(static_cast<char>(in[pos+i+1]));
         }
         pos += in[pos] + 1;
+        // 升级包总长度.
+        upgrade_info.upgrade_data_total_len = in[pos]*65536*256+
+                                              in[pos+1]*65536+
+                                              in[pos+2]*256+
+                                              in[pos+3];
         // 升级数据包内容.
-        uint16_t content_len = in[pos]*256+in[pos+1];
-        pos += 2;
+        pos += 4;
+        uint16_t content_len = msg_len-(pos-beg);
         if (content_len+9+upgrade_info.version_id.size() > msg_len) return -1;
-        upgrade_info.upgrade_data.assign(in.begin()+pos, in.begin()+pos+content_len);
+        upgrade_info.upgrade_data.assign(
+            in.begin()+pos, in.begin()+pos+content_len);
         return 0;
       }
   ));

@@ -105,21 +105,21 @@ int main(int argc, char **argv) {
   // 升级数据包.
   svr_para.upgrade_info.upgrade_data.clear();
   // 一条消息内容最大1023字节(转义前).
-  uint16_t max_content = 1023-9-svr_para.upgrade_info.version_id.size();
+  uint16_t max_content = 1023-11-svr_para.upgrade_info.version_id.size();
   std::vector<uint8_t> out;
   std::map<uint16_t, std::vector<uint8_t>> packet_msg;
   std::map<uint16_t, std::vector<uint8_t>> packet_data;
+  svr_para.upgrade_info.upgrade_data_total_len = length;
   if (length > max_content) {  // 需要分包处理.
     auto const& cli_parse_upgrade_info = cli_para.parse.upgrade_info;
     svr_para.msg_head.msgbody_attr.bit.packet = 1;  // 进行分包.
     svr_para.msg_head.total_packet =
         static_cast<uint16_t>(ceil(length*1.0/max_content));
     svr_para.msg_head.packet_seq = 1;
-    uint16_t len = 0;
+    size_t len = 0;
     for (size_t i = 0; i < length; i += max_content) {
       len = length-i;
       if (len > max_content) len = max_content;
-      svr_para.upgrade_info.upgrade_data.clear();
       svr_para.upgrade_info.upgrade_data.assign(
           buffer.get()+i, buffer.get()+i+len);
       // svr_para.msg_head.msgbody_attr.bit.packet = 1;  // 进行分包.

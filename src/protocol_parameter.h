@@ -214,6 +214,8 @@ struct UpgradeInfo {
   std::vector<uint8_t> manufacturer_id;
   // 升级版本号.
   std::string version_id;
+  // 升级包总长度.
+  uint32_t upgrade_data_total_len;
   // 升级数据包.
   std::vector<uint8_t> upgrade_data;
 };

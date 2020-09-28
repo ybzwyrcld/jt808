@@ -504,15 +504,16 @@ void JT808Client::ReceiveHandler(std::atomic_bool *const running) {
           auto const& msg_head =  parameter_.parse.msg_head;
           auto const& packet_size = upgrade_info.upgrade_data.size();
           // 检查分包.
-          if (msg_head.msgbody_attr.bit.packet == 1) {
+          if (msg_head.msgbody_attr.bit.packet == 1) {  // 分包.
             // 分配空间.
-            if (msg_head.packet_seq == 1) {
+            if (msg_head.packet_seq == 1) {  // 第一包.
               int max_len = msg_head.msgbody_attr.bit.msglen*
                             msg_head.total_packet;
                 upgrade_buffer = std::move(std::unique_ptr<char[]>(
                     new char[max_len], std::default_delete<char[]>()));
               // 子包最大的数据长度.
               packet_max_size = packet_size;
+              total_size = 0;
             }
             memcpy(&(upgrade_buffer[packet_max_size*(msg_head.packet_seq-1)]),
                    upgrade_info.upgrade_data.data(),
@@ -527,10 +528,11 @@ void JT808Client::ReceiveHandler(std::atomic_bool *const running) {
                                 total_size);
               upgrade_buffer.release();
               // 暂时直接返回升级结果.
-              parameter_.respone_result = kTerminalUpgradeSuccess;
+              parameter_.upgrade_info.upgrade_type = upgrade_info.upgrade_type;
+              parameter_.upgrade_info.upgrade_result = kTerminalUpgradeSuccess;
               PackagingGeneralMessage(kTerminalUpgradeResultReport);
             }
-          } else {
+          } else {  // 未分包.
             parameter_.respone_result = kSuccess;
             PackagingGeneralMessage(kTerminalGeneralResponse);
             upgrade_callback_(upgrade_info.upgrade_type,
@@ -539,7 +541,8 @@ void JT808Client::ReceiveHandler(std::atomic_bool *const running) {
                               static_cast<int>(
                                   upgrade_info.upgrade_data.size()));
             // 暂时直接返回升级结果.
-            parameter_.respone_result = kTerminalUpgradeSuccess;
+            parameter_.upgrade_info.upgrade_type = upgrade_info.upgrade_type;
+            parameter_.upgrade_info.upgrade_result = kTerminalUpgradeSuccess;
             PackagingGeneralMessage(kTerminalUpgradeResultReport);
           }
         } else if (msg_id == kPlatformGeneralResponse) {

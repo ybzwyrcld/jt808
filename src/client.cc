@@ -311,7 +311,6 @@ int JT808Client::PackagingMessage(uint32_t const& msg_id,
 
 int JT808Client::PackagingGeneralMessage(uint32_t const& msg_id) {
   std::vector<uint8_t> msg;
-  PackagingMessage(msg_id, &msg);
   if (PackagingMessage(msg_id, &msg) != 0) {
     return -1;
   }
@@ -373,6 +372,9 @@ void JT808Client::SendHandler(std::atomic_bool *const running) {
     // 优先发送应答消息.
     if (!general_msg_.empty()) {
       for (auto& msg : general_msg_) {
+        // printf("JT808 Send[%d]: ", static_cast<int>(msg.size()));
+        // for (auto const& uch : msg) printf("%02X ", uch);
+        // printf("\n");
         if (Send(client_, reinterpret_cast<char*>(msg.data()),
                  msg.size(), 0) <= 0) {
           printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);
@@ -387,6 +389,9 @@ void JT808Client::SendHandler(std::atomic_bool *const running) {
     // 外部生成上报消息, 交由内部进行上报.
     if (!location_report_msg_.empty()) {
       for (auto& msg : location_report_msg_) {
+        // printf("JT808 Send[%d]: ", static_cast<int>(msg.size()));
+        // for (auto const& uch : msg) printf("%02X ", uch);
+        // printf("\n");
         if (Send(client_, reinterpret_cast<char*>(msg.data()),
                  msg.size(), 0) <= 0) {
           printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);

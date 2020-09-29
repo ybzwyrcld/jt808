@@ -484,7 +484,7 @@ void JT808Client::ReceiveHandler(std::atomic_bool *const running) {
           }
           PackagingGeneralMessage(kGetTerminalParametersResponse);
         } else if (msg_id == kSetPolygonArea) {  // 设置矩形区域.
-          UpdatePolygonAreaByArea(parameter_.polygon_area);
+          UpdatePolygonAreaByArea(parameter_.parse.polygon_area);
           // 应答成功.
           parameter_.respone_result = kSuccess;
           PackagingMessage(kTerminalGeneralResponse, &msg);

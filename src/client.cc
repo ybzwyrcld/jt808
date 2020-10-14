@@ -378,6 +378,7 @@ void JT808Client::SendHandler(std::atomic_bool *const running) {
         if (Send(client_, reinterpret_cast<char*>(msg.data()),
                  msg.size(), 0) <= 0) {
           printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);
+          service_is_running_.store(false);
           break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));

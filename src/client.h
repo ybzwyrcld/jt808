@@ -142,6 +142,8 @@ class JT808Client {
   void Run(void);
   // 停止服务线程.
   void Stop(void);
+  // 等待所有缓存消息发送完成或等待超时后再停止服务线程.
+  void WattingStop(int const& timeout_msec);
   // 获取当前服务线程运行状态.
   bool service_is_running(void) const {
     return service_is_running_;

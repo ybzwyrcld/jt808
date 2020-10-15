@@ -220,6 +220,29 @@ void JT808Client::Stop(void) {
   }
 }
 
+void JT808Client::WattingStop(int const& timeout_msec) {
+  if (client_ > 0) {
+    auto begin_tp = std::chrono::steady_clock::now();
+    auto end_tp = begin_tp;
+    while (std::chrono::duration_cast<std::chrono::milliseconds>(
+              end_tp-begin_tp).count() < timeout_msec) {
+      if (general_msg_.empty() && location_report_msg_.empty()) break;
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      end_tp = std::chrono::steady_clock::now();
+    }
+    general_msg_.clear();
+    location_report_msg_.clear();
+    service_is_running_.store(false);
+    Close(client_);
+    client_ = 0;
+#if defined(_WIN32)
+    WSACleanup();
+#endif
+    is_authenticated_.store(false);
+    is_connected_.store(false);
+  }
+}
+
 void JT808Client::GenerateLocationReportMsgNow(void) {
   // printf("timestamp: %s\n", parameter_.location_info.time.c_str());
   std::vector<uint8_t> msg;

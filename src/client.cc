@@ -550,7 +550,7 @@ void JT808Client::ReceiveHandler(std::atomic_bool *const running) {
               upgrade_callback_(upgrade_info.upgrade_type,
                                 upgrade_buffer.get(),
                                 total_size);
-              upgrade_buffer.release();
+              upgrade_buffer.reset();
               // 暂时直接返回升级结果.
               parameter_.upgrade_info.upgrade_type = upgrade_info.upgrade_type;
               parameter_.upgrade_info.upgrade_result = kTerminalUpgradeSuccess;

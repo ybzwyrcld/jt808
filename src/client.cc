@@ -30,6 +30,7 @@
 #include "client.h"
 
 #include <string.h>
+#include <math.h>
 #if defined(__linux__)
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -37,6 +38,7 @@
 #endif
 
 #include <chrono>
+#include <fstream>
 
 #include "socket_util.h"
 
@@ -256,6 +258,83 @@ void JT808Client::GenerateLocationReportMsgNow(void) {
   location_report_msg_.push_back(std::move(msg));
 }
 
+int JT808Client::MultimediaUpload(char const* path,
+    std::vector<uint8_t> const& location_basic) {
+  std::ifstream ifs;
+  ifs.open(path, std::ios::in|std::ios::binary);
+  if (!ifs.is_open()) {
+    printf("%s[%d]: Updrade file open failed !!!\n", __FUNCTION__, __LINE__);
+    return -1;
+  }
+  ifs.seekg(0, std::ios::end);
+  size_t length = ifs.tellg();
+  ifs.seekg(0, std::ios::beg);
+  std::unique_ptr<char[]> buffer(
+      new char[length], std::default_delete<char[]>());
+  ifs.read(buffer.get(), length);
+  ifs.close();
+  auto& media = parameter_.multimedia_upload;
+  media.media_id = 0x0001;
+  media.media_type = 0x00;
+  media.media_format = 0x00;
+  media.media_event = 0x01;
+  media.channel_id = 0x00;
+  if (location_basic.size() != 28) {
+    media.loaction_report_body.assign(28, 0);
+  } else {
+    media.loaction_report_body.assign(
+        location_basic.begin(), location_basic.end());
+  }
+  manual_deal_.store(true);
+  uint16_t max_content = 1023-36;
+  if (length > max_content) {  // 需要分包处理.
+    parameter_.msg_head.msgbody_attr.bit.packet = 1;  // 进行分包.
+    parameter_.msg_head.total_packet =
+        static_cast<uint16_t>(ceil(length*1.0/max_content));
+    parameter_.msg_head.packet_seq = 1;
+    size_t len = 0;
+    for (size_t i = 0; i < length; i += max_content) {
+      len = length-i;
+      if (len > max_content) len = max_content;
+      media.media_data.assign(buffer.get()+i, buffer.get()+i+len);
+      if (PackagingAndSendMessage(kMultimediaDataUpload) < 0) {
+        manual_deal_.store(false);
+        return -1;
+      }
+      if (ReceiveAndParseMessage(3) < 0) {
+        manual_deal_.store(false);
+        return -1;
+      }
+      if (parameter_.parse.msg_head.msg_id != kPlatformGeneralResponse ||
+          parameter_.parse.respone_msg_id != kMultimediaDataUpload ||
+          parameter_.parse.respone_result != kSuccess) {
+        manual_deal_.store(false);
+        return -1;
+      }
+      ++parameter_.msg_head.packet_seq;
+    }
+    parameter_.msg_head.msgbody_attr.bit.packet = 0;
+    parameter_.msg_head.total_packet = 1;
+  } else {
+    media.media_data.assign(buffer.get(), buffer.get()+length);
+    if (PackagingAndSendMessage(kMultimediaDataUpload) < 0) {
+      manual_deal_.store(false);
+      return -1;
+    }
+    if (ReceiveAndParseMessage(3) < 0) {
+      manual_deal_.store(false);
+      return -1;
+    }
+    if (parameter_.parse.respone_msg_id != kMultimediaDataUpload ||
+        parameter_.parse.respone_result != kSuccess) {
+      manual_deal_.store(false);
+      return -1;
+    }
+  }
+  manual_deal_.store(false);
+  return 0;
+}
+
 // 根据提供的消息ID以及调用前此函数前对参数的设定, 生成对应的JT808格式消息,
 // 并通过socket发送到服务端.
 int JT808Client::PackagingAndSendMessage(uint32_t const& msg_id) {
@@ -390,7 +469,12 @@ void JT808Client::SendHandler(std::atomic_bool *const running) {
     heartbeat_intv = 60000;  // 60s.
   }
   bool first_report = true;
+  manual_deal_.store(false);
   while (*running) {
+    if (manual_deal_.load()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      continue;
+    }
     end_tp = std::chrono::steady_clock::now();
     // 优先发送应答消息.
     if (!general_msg_.empty()) {
@@ -474,7 +558,12 @@ void JT808Client::ReceiveHandler(std::atomic_bool *const running) {
   std::unique_ptr<char[]> upgrade_buffer;
   int total_size = 0;
   int packet_max_size = 0;
+  manual_deal_.store(false);
   while (*running) {
+    if (manual_deal_.load()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      continue;
+    }
     if ((ret = Recv(client_, buffer.get(), 4096, 0)) > 0) {
       // TODO(mengyuming@hotmail.com): 需要处理TCP粘包.
       msg.assign(buffer.get(), buffer.get()+ret);

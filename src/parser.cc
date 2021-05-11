@@ -593,6 +593,60 @@ int JT808FrameParserInit(Parser* parser) {
         return 0;
       }
   ));
+  // 0x0801, 多媒体数据上传.
+  parser->insert(std::pair<uint16_t, ParseHandler>(kMultimediaDataUpload,
+      [] (std::vector<uint8_t> const& in, ProtocolParameter* para) -> int {
+        if (para == nullptr) return -1;
+        auto const& msg_len = para->parse.msg_head.msgbody_attr.bit.msglen;
+        uint16_t pos = MSGBODY_NOPACKET_POS;
+        if (para->parse.msg_head.msgbody_attr.bit.packet == 1)
+          pos = MSGBODY_PACKET_POS;
+        U32ToU8Array u32converter;
+        // 多媒体ID.
+        memcpy(u32converter.u8array, in.data()+pos, 4);
+        para->parse.multimedia_upload.media_id =
+            EndianSwap32(u32converter.u32val);
+        // 多媒体类型.
+        para->parse.multimedia_upload.media_type = in[pos+4];
+        // 多媒体格式.
+        para->parse.multimedia_upload.media_format = in[pos+5];
+        // 事件项.
+        para->parse.multimedia_upload.media_event = in[pos+6];
+        // 通道ID.
+        para->parse.multimedia_upload.channel_id = in[pos+7];
+        para->parse.multimedia_upload.loaction_report_body.assign(
+            in.begin()+pos+8, in.begin()+pos+36);
+        para->parse.multimedia_upload.media_data.assign(
+            in.begin()+pos+36, in.begin()+pos+msg_len);
+        return 0;
+      }));
+  // 0x8800, 多媒体数据上传应答.
+  parser->insert(std::pair<uint16_t, ParseHandler>(
+      kMultimediaDataUploadResponse,
+      [] (std::vector<uint8_t> const& in, ProtocolParameter* para) -> int {
+        if (para == nullptr) return -1;
+        auto const& msg_len = para->parse.msg_head.msgbody_attr.bit.msglen;
+        uint16_t pos = MSGBODY_NOPACKET_POS;
+        if (para->parse.msg_head.msgbody_attr.bit.packet == 1)
+          pos = MSGBODY_PACKET_POS;
+        U32ToU8Array u32converter;
+        // 多媒体ID.
+        memcpy(u32converter.u8array, in.data()+pos, 4);
+        para->parse.multimedia_upload_response.media_id =
+            EndianSwap32(u32converter.u32val);
+        // 检查是否需要补传.
+        if (msg_len > 4) {
+          U16ToU8Array u16converter;
+          para->parse.multimedia_upload_response.reload_packet_ids.clear();
+          int cnt = in[pos+4];
+          auto& ids = para->parse.multimedia_upload_response.reload_packet_ids;
+          for (int i = 0; i < cnt; ++i) {
+            memcpy(u16converter.u8array, &(in[pos+5+2*i]), 2);
+            ids.push_back(EndianSwap16(u16converter.u16val));
+          }
+        }
+        return 0;
+      }));
   return 0;
 }
 

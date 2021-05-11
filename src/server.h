@@ -153,6 +153,14 @@ class JT808Server {
     }
     return -1;
   }
+  // 
+  // 多媒体数据上传.
+  //
+  using MultimediaDataUploadCallback =
+      std::function<void (MultiMediaDataUpload const&)>;
+  void OnMultimediaDataUploaded(MultimediaDataUploadCallback const& callback) {
+    multimedia_data_upload_callback_ = callback;
+  }
 
   // 通用消息封装和发送函数.
   // Args:
@@ -189,6 +197,7 @@ class JT808Server {
   std::string ip_;  // 服务端IP地址.
   int port_;  // 服务端端口.
   int max_connection_num_;
+  MultimediaDataUploadCallback multimedia_data_upload_callback_;
   std::thread waiting_thread_;  // 等待客户端连接线程.
   std::atomic_bool waiting_is_running_;  // 等待客户端连接线程运行标志.
   std::thread service_thread_;  // 主服务线程.

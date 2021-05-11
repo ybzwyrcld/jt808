@@ -630,6 +630,48 @@ int JT808FramePackagerInit(Packager* packager) {
         return msg_len;
       }
   ));
+  // 0x0801, 多媒体数据上传.
+  packager->insert(std::pair<uint16_t, PackageHandler>(kMultimediaDataUpload,
+      [] (ProtocolParameter const& para, std::vector<uint8_t>* out) {
+        if (out == nullptr) return -1;
+        int msg_len = 36 + para.multimedia_upload.media_data.size();
+        U32ToU8Array u32converter;
+        u32converter.u32val = para.multimedia_upload.media_id;
+        for (int i = 0; i < 4; ++i) out->push_back(u32converter.u8array[1-i]);
+        out->push_back(para.multimedia_upload.media_type);
+        out->push_back(para.multimedia_upload.media_format);
+        out->push_back(para.multimedia_upload.media_event);
+        out->push_back(para.multimedia_upload.channel_id);
+        out->insert(out->end(),
+                    para.multimedia_upload.loaction_report_body.begin(),
+                    para.multimedia_upload.loaction_report_body.end());
+        out->insert(out->end(), para.multimedia_upload.media_data.begin(),
+                    para.multimedia_upload.media_data.end());
+        return msg_len;
+      }));
+  // 0x8800, 多媒体数据上传应答.
+  packager->insert(std::pair<uint16_t, PackageHandler>(
+      kMultimediaDataUploadResponse,
+      [] (ProtocolParameter const& para, std::vector<uint8_t>* out) {
+        if (out == nullptr) return -1;
+        int msg_len = 4;
+        U32ToU8Array u32converter;
+        U16ToU8Array u16converter;
+        u32converter.u32val = para.multimedia_upload_response.media_id;
+        for (int i = 0; i < 4; ++i) out->push_back(u32converter.u8array[1-i]);
+        if (!para.multimedia_upload_response.reload_packet_ids.empty()) {
+          auto const& ids = para.multimedia_upload_response.reload_packet_ids;
+          out->push_back(ids.size());
+          for (auto& id : ids) {
+            u16converter.u16val = id;
+            for (int i = 0; i < 2; ++i) {
+              out->push_back(u16converter.u8array[1-i]);
+            }
+            msg_len += 2;
+          }
+        } 
+        return msg_len;
+      }));
   return 0;
 }
 

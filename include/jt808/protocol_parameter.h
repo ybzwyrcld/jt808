@@ -36,6 +36,7 @@
 #include "jt808/area_route.h"
 #include "jt808/location_report.h"
 #include "jt808/terminal_parameter.h"
+#include "jt808/multimedia_upload.h"
 
 
 namespace libjt808 {
@@ -62,6 +63,8 @@ enum SupportedCommands {
   kLocationTrackingControl = 0x8202,  // 临时位置跟踪控制.
   kSetPolygonArea = 0x8604,  // 设置多边形区域.
   kDeletePolygonArea = 0x8605,  // 删除多边形区域.
+  kMultimediaDataUpload = 0x0801,  // 多媒体数据上传.
+  kMultimediaDataUploadResponse = 0x8800,  // 多媒体数据上传应答.
 };
 
 // 所有应答命令.
@@ -259,6 +262,10 @@ struct ProtocolParameter {
   UpgradeInfo upgrade_info;
   // 补传分包信息.
   struct FillPacket fill_packet;
+  // 多媒体数据上传.
+  MultiMediaDataUpload multimedia_upload;
+  // 多媒体数据上传应答.
+  MultiMediaDataUploadResponse multimedia_upload_response;
   // 保留字段.
   std::vector<uint8_t> retain;
   // 用于解析消息.
@@ -292,6 +299,10 @@ struct ProtocolParameter {
     UpgradeInfo upgrade_info;
     // 解析出的补传分包信息.
     struct FillPacket fill_packet;
+    // 解析出的多媒体数据上传.
+    MultiMediaDataUpload multimedia_upload;
+    // 解析出的多媒体数据上传应答.
+    MultiMediaDataUploadResponse multimedia_upload_response;
     // 解析出的保留字段.
     std::vector<uint8_t> retain;
   }parse;

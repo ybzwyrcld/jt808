@@ -406,6 +406,9 @@ void JT808Server::ServiceHandler(void) {
   std::vector<uint8_t> msg;
   std::vector<uint16_t> response_cmd = {kResponseCommand,
       kResponseCommand+sizeof(kResponseCommand)/sizeof(kResponseCommand[0])};
+  std::unique_ptr<char[]> data_buffer;
+  int total_size = 0;
+  int packet_max_size = 0;
   while(service_is_running_) {
     for (auto& socket : clients_) {
       // 升级请求时不在此处作处理.
@@ -417,6 +420,9 @@ void JT808Server::ServiceHandler(void) {
       if ((ret = Recv(socket.first, buffer.get(), 4096, 0)) > 0) {
         if (!alive) alive = true;
         msg.assign(buffer.get(), buffer.get() + ret);
+        // printf("Recv[%d]: ", ret);
+        // for (auto const& ch : msg) printf("%02X ", ch);
+        // printf("\n");
         if (JT808FrameParse(parser_, msg, &socket.second) == 0) {
           socket.second.respone_result = kSuccess;
           auto const& msg_id = socket.second.parse.msg_head.msg_id;
@@ -424,6 +430,65 @@ void JT808Server::ServiceHandler(void) {
             PrintLocationReportInfo(socket.second);
           } else if (msg_id == kGetTerminalParametersResponse) {
             PrintTerminalParameter(socket.second);
+          } else if (msg_id == kMultimediaDataUpload) {  // 多媒体数据上传.
+            // TODO(mengyuming@hotmail.com): 未做分包完整性校验.
+            auto& media = socket.second.parse.multimedia_upload;
+            auto const& msg_head =  socket.second.parse.msg_head;
+            auto const& packet_size = media.media_data.size();
+            // 检查分包.
+            if (msg_head.msgbody_attr.bit.packet == 1) {  // 分包.
+              // 分配空间.
+              if (msg_head.packet_seq == 1) {  // 第一包.
+                int max_len = (1023-36)*msg_head.total_packet;
+                  data_buffer = std::move(std::unique_ptr<char[]>(
+                      new char[max_len], std::default_delete<char[]>()));
+                // 子包最大的数据长度.
+                packet_max_size = packet_size;
+                total_size = 0;
+              }
+              memcpy(&(data_buffer[packet_max_size*(msg_head.packet_seq-1)]),
+                  media.media_data.data(), packet_size);
+              total_size += packet_size;
+              socket.second.respone_result = kSuccess;
+              if (PackagingAndSendMessage(socket.first,
+                    kPlatformGeneralResponse, &socket.second) < 0) {
+                printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
+                data_buffer.reset();
+                Close(socket.first);
+                clients_.erase(socket.first);
+                break;  // 删除连接时不再继续遍历, 而是重新开始遍历.
+              }
+              // 等待所有数据传输完成.
+              if (msg_head.packet_seq == msg_head.total_packet) {
+                media.media_data.clear();
+                media.media_data.assign(data_buffer.get(), data_buffer.get()+total_size);
+                multimedia_data_upload_callback_(media);
+                media.media_data.clear();
+                media.loaction_report_body.clear();
+                data_buffer.reset();
+                // 暂时直接返回升级结果.
+                socket.second.multimedia_upload_response.media_id = media.media_id;
+                if (PackagingAndSendMessage(socket.first,
+                    kMultimediaDataUploadResponse, &socket.second) < 0) {
+                  printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
+                  Close(socket.first);
+                  clients_.erase(socket.first);
+                  break;  // 删除连接时不再继续遍历, 而是重新开始遍历.
+                }
+              }
+            } else {  // 未分包.
+              multimedia_data_upload_callback_(media);
+              media.media_data.clear();
+              media.loaction_report_body.clear();
+              socket.second.multimedia_upload_response.media_id = media.media_id;
+              if (PackagingAndSendMessage(socket.first,
+                  kMultimediaDataUploadResponse, &socket.second) < 0) {
+                printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
+                Close(socket.first);
+                clients_.erase(socket.first);
+                break;  // 删除连接时不再继续遍历, 而是重新开始遍历.
+              }
+            }
           }
           // 对于非应答类命令默认使用平台通用应答.
           if (find(response_cmd.begin(), response_cmd.end(), msg_id) ==

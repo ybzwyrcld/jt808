@@ -77,10 +77,28 @@ target_link_libraries(jt808_server
 )
 
 add_executable(jt808_1hz_location_report_client
-  jt808_client.cc
+  jt808_1hz_location_report_client.cc
 )
 add_dependencies(jt808_1hz_location_report_client jt808)
 target_link_libraries(jt808_1hz_location_report_client
+  jt808
+  pthread
+)
+
+add_executable(jt808_multimedia_upload_client
+  jt808_multimedia_upload_client.cc
+)
+add_dependencies(jt808_multimedia_upload_client jt808)
+target_link_libraries(jt808_multimedia_upload_client
+  jt808
+  pthread
+)
+
+add_executable(jt808_multimedia_upload_server
+  jt808_multimedia_upload_server.cc
+)
+add_dependencies(jt808_multimedia_upload_server jt808)
+target_link_libraries(jt808_multimedia_upload_server
   jt808
   pthread
 )

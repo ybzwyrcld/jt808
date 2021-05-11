@@ -467,6 +467,16 @@ class JT808Client {
   void OnPolygonAreaUpdated(PolygonAreaCallback const& callback) {
     polygon_area_callback_ = callback;
   }
+  //
+  // 多媒体数据上传.
+  //
+  // Args:
+  //     path: 上传JPEG图片路径.
+  //     location_basic: 位置基本信息封装.
+  // Returns:
+  //     None.
+  int MultimediaUpload(char const* path,
+      std::vector<uint8_t> const& location_basic);
 
   // 通用消息封装和发送函数.
   // Args:
@@ -498,6 +508,7 @@ class JT808Client {
   // 接收服务端消息线程处理函数.
   void ReceiveHandler(std::atomic_bool *const running);
 
+  std::atomic_bool manual_deal_;  // 手动处理标志.
   std::mutex msg_generate_mutex_;  // 消息生成互斥锁, 保证消息流水号唯一性.
   decltype(socket(0, 0, 0)) client_;  // 通用TCP连接socket.
   std::atomic_bool is_connected_;  // 与服务端TCP连接状态.

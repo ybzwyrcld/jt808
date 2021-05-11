@@ -27,7 +27,7 @@
 // @Contact :  mengyuming@hotmail.com
 // @Desc    :  None
 
-#include "bcd.h"
+#include "jt808/bcd.h"
 
 
 namespace libjt808 {

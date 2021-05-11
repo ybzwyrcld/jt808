@@ -40,7 +40,6 @@ int main(int argc, char **argv) {
   client.Init();
   client.SetRemoteAccessPoint("127.0.0.1", 8888);
   client.SetTerminalPhoneNumber("13395279527");
-  client.set_location_report_inteval(300);
   if ((client.ConnectRemote() == 0) &&
       (client.JT808ConnectionAuthentication() == 0)) {
     client.Run();

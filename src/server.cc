@@ -461,13 +461,17 @@ void JT808Server::ServiceHandler(void) {
               // 等待所有数据传输完成.
               if (msg_head.packet_seq == msg_head.total_packet) {
                 media.media_data.clear();
-                media.media_data.assign(data_buffer.get(), data_buffer.get()+total_size);
+                media.media_data.assign(data_buffer.get(),
+                    data_buffer.get()+total_size);
                 multimedia_data_upload_callback_(media);
                 media.media_data.clear();
                 media.loaction_report_body.clear();
                 data_buffer.reset();
-                // 暂时直接返回升级结果.
-                socket.second.multimedia_upload_response.media_id = media.media_id;
+                std::this_thread::sleep_for(std::chrono:: milliseconds(100));
+                // 暂时直接返回成功.
+                auto& resp = socket.second.multimedia_upload_response;
+                resp.media_id = media.media_id;
+                resp.reload_packet_ids.clear();
                 if (PackagingAndSendMessage(socket.first,
                     kMultimediaDataUploadResponse, &socket.second) < 0) {
                   printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);

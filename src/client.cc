@@ -331,6 +331,16 @@ int JT808Client::MultimediaUpload(char const* path,
       return -1;
     }
   }
+  if (ReceiveAndParseMessage(5) == 0) {
+    if (parameter_.parse.msg_head.msg_id == kMultimediaDataUploadResponse) {
+      if (parameter_.parse.msg_head.msgbody_attr.bit.msglen == 4) {
+        printf("Completed.\n");
+      } else {
+        // TODO(mengyuming@hotmail.com): 需要重传.
+      }
+    }
+  }
+  printf("Done.\n");
   manual_deal_.store(false);
   return 0;
 }
@@ -471,45 +481,51 @@ void JT808Client::SendHandler(std::atomic_bool *const running) {
   bool first_report = true;
   manual_deal_.store(false);
   while (*running) {
-    if (manual_deal_.load()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(20));
-      continue;
-    }
+    // if (manual_deal_.load()) {
+    //   std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    //   continue;
+    // }
     end_tp = std::chrono::steady_clock::now();
     // 优先发送应答消息.
     if (!general_msg_.empty()) {
-      for (auto& msg : general_msg_) {
-        // printf("JT808 Send[%d]: ", static_cast<int>(msg.size()));
-        // for (auto const& uch : msg) printf("%02X ", uch);
-        // printf("\n");
-        if (Send(client_, reinterpret_cast<char*>(msg.data()),
-                 msg.size(), 0) <= 0) {
-          printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);
-          service_is_running_.store(false);
-          break;
+      if (!manual_deal_.load()) {
+        for (auto& msg : general_msg_) {
+          // printf("JT808 Send[%d]: ", static_cast<int>(msg.size()));
+          // for (auto const& uch : msg) printf("%02X ", uch);
+          // printf("\n");
+          if (Send(client_, reinterpret_cast<char*>(msg.data()),
+                  msg.size(), 0) <= 0) {
+            printf("%s[%d]: Send message failed !!!\n",
+                __FUNCTION__, __LINE__);
+            service_is_running_.store(false);
+            break;
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        general_msg_.clear();
       }
-      general_msg_.clear();
       heartbeat_begin_tp = end_tp;  // 重置心跳检测时间.
     }
     // 到达时间间隔或有立即上报的标志时进行位置信息汇报.
     // 外部生成上报消息, 交由内部进行上报.
     if (!location_report_msg_.empty()) {
-      for (auto& msg : location_report_msg_) {
-        // printf("JT808 Send[%d]: ", static_cast<int>(msg.size()));
-        // for (auto const& uch : msg) printf("%02X ", uch);
-        // printf("\n");
-        if (Send(client_, reinterpret_cast<char*>(msg.data()),
-                 msg.size(), 0) <= 0) {
-          printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);
-          service_is_running_.store(false);
-          break;
+      if (!manual_deal_.load()) {
+        for (auto& msg : location_report_msg_) {
+          // printf("JT808 Send[%d]: ", static_cast<int>(msg.size()));
+          // for (auto const& uch : msg) printf("%02X ", uch);
+          // printf("\n");
+          if (Send(client_, reinterpret_cast<char*>(msg.data()),
+                  msg.size(), 0) <= 0) {
+            printf("%s[%d]: Send message failed !!!\n",
+                __FUNCTION__, __LINE__);
+            service_is_running_.store(false);
+            break;
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        location_report_msg_.clear();
+        // report_begin_tp = end_tp;
       }
-      location_report_msg_.clear();
-      report_begin_tp = end_tp;
       heartbeat_begin_tp = end_tp;  // 重置心跳检测时间.
     }
     // 上次发送位置上报消息到此时的时间差.

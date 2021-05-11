@@ -35,6 +35,83 @@
 #include "jt808/client.h"
 
 
+using LocationExtensions = std::map<uint8_t, std::vector<uint8_t>>;
+
+namespace {
+
+constexpr uint8_t kPositioningFixStatus = 0xEE;
+
+int UpdateGNSSSatelliteNumber( uint8_t const& num, LocationExtensions* items) {
+  if (items == nullptr) return -1;
+  auto const& it = items->find(libjt808::kGnssSatellites);
+  if (it != items->end()) {
+    it->second.clear();
+    it->second.push_back(num);
+  } else {
+   items->insert(
+      std::make_pair(libjt808::kGnssSatellites, std::vector<uint8_t>{num}));
+  }
+  return 0;
+}
+
+void UpdateGNSSPositioningSolutionStatus(
+    uint8_t const& fix, LocationExtensions* items) {
+  auto const& it = items->find(kPositioningFixStatus);
+  if (it != items->end()) {
+    it->second.clear();
+    it->second.push_back(fix);
+  } else {
+    items->insert(
+        std::make_pair(kPositioningFixStatus, std::vector<uint8_t>{fix}));
+  }
+  // 检查后续自定义信息长度项是否存在.
+  auto const& iter =
+      items->find(libjt808::kCustomInformationLength);
+  if (iter == items->end()) {
+   items->insert(
+      std::make_pair(libjt808::kCustomInformationLength, std::vector<uint8_t>{0}));
+  }
+}
+
+std::string TimestampToString(int64_t const& timestamp) {
+  struct tm tm_now;
+  auto tt = static_cast<time_t>(timestamp);
+  localtime_r(&tt, &tm_now);
+  char date[16] = {0};
+  snprintf(date, sizeof(date)-1, "%02d%02d%02d%02d%02d%02d",
+		       (tm_now.tm_year+1900)/100, tm_now.tm_mon + 1, tm_now.tm_mday,
+		       tm_now.tm_hour, tm_now.tm_min, tm_now.tm_sec);
+  return std::string(date);
+}
+
+std::string GetTime(void) {
+  return TimestampToString(
+      std::chrono::duration_cast<std::chrono::seconds>(
+          std::chrono::system_clock::now().time_since_epoch()).count());
+}
+
+void UpdateThread(libjt808::JT808Client* client) {
+  uint32_t pos_flag = 0;
+  auto tp_beg = std::chrono::steady_clock::now();
+  auto tp_end = tp_beg;
+  while (client->service_is_running()) {
+    // 模拟定位模块1s更新一次定位数据.
+    tp_end = std::chrono::steady_clock::now();
+    if (std::chrono::duration_cast<std::chrono::seconds>(tp_end-tp_beg).count() >= 1) {
+      tp_beg = tp_end;
+      if ((++pos_flag / 10) % 2 == 0) {
+        client->UpdateLocation(22.570336, 113.937577, 54.0f, 60, 0, GetTime());
+      } else {
+        client->UpdateLocation(22.570336, 113.938577, 54.0f, 60, 0, GetTime());
+      }
+    } else {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+  }
+}
+
+}  // namespace
+
 int main(int argc, char **argv) {
   libjt808::JT808Client client;
   client.Init();
@@ -42,9 +119,17 @@ int main(int argc, char **argv) {
   client.SetTerminalPhoneNumber("13395279527");
   if ((client.ConnectRemote() == 0) &&
       (client.JT808ConnectionAuthentication() == 0)) {
+    client.UpdateLocation(22.570336, 113.937577, 54.0f, 60, 0, GetTime());
+    libjt808::StatusBit status_bit {};
+    status_bit.bit.positioning = 1;  // 已成功定位.
+    client.SetStatusBit(status_bit.value);
+    auto& location_extensions = client.GetLocationExtension();
+    UpdateGNSSSatelliteNumber(11, &location_extensions);
+    UpdateGNSSPositioningSolutionStatus(2, &location_extensions);
     client.Run();
     std::this_thread::sleep_for(std::chrono::seconds(1));
     std::string cmd;
+    std::thread(UpdateThread, &client).detach();
     while (client.service_is_running()) {
       std::cin >> cmd;
       if (cmd == "upload") {

@@ -92,73 +92,101 @@ void JT808Client::Init(void) {
   is_authenticated_.store(false);
   service_is_running_.store(false);
   location_report_msg_generate_outside_.store(false);
+  tcp_connection_handling_.store(false);
+  jt808_connection_handling_.store(false);
 }
 
 // 与远程服务器建立TCP连接, 并设置socket为非阻塞模式.
 int JT808Client::ConnectRemote(void) {
+  if (tcp_connection_handling_.load()) return -1;
+  if (jt808_connection_handling_.load()) return -1;
+  if (is_connected_.load()) return 0;
+  tcp_connection_handling_.store(true);
   struct sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
   addr.sin_port = htons(static_cast<uint16_t>(port_));
 #if defined(__linux__)
   addr.sin_addr.s_addr = inet_addr(ip_.c_str());
-  client_= socket(AF_INET, SOCK_STREAM, 0);
-  if (client_ == -1) {
+  auto tcp_socket = socket(AF_INET, SOCK_STREAM, 0);
+  if (tcp_socket == -1) {
     printf("%s[%d]: Create socket failed!!!\n", __FUNCTION__, __LINE__);
+    tcp_connection_handling_.store(false);
     return -1;
   }
   struct timeval timeout = {0, 500000};
-  setsockopt(client_, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
-  setsockopt(client_, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+  setsockopt(tcp_socket, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+  setsockopt(tcp_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 #elif defined(_WIN32)
   WSADATA ws_data;
   if (WSAStartup(MAKEWORD(2,2), &ws_data) != 0) {
+    tcp_connection_handling_.store(false);
     return -1;
   }
-  client_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (client_ == INVALID_SOCKET) {
+  auto tcp_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (tcp_socket == INVALID_SOCKET) {
     printf("%s[%d]: Create socket failed!!!\n", __FUNCTION__, __LINE__);
     WSACleanup();
+    tcp_connection_handling_.store(false);
     return -1;
   }
   addr.sin_addr.S_un.S_addr = inet_addr(ip_.c_str());
 #endif
-  if (Connect(client_, reinterpret_cast<struct sockaddr *>(&addr),
+  if (Connect(tcp_socket, reinterpret_cast<struct sockaddr *>(&addr),
               sizeof(addr)) == -1) {
-    printf("%s[%d]: Connect to remote server failed!!!\n",
-           __FUNCTION__, __LINE__);
-    Close(client_);
+    printf("[%s:%d] Connect to remote server failed!!!\n",
+        ip_.c_str(), port_);
+    Close(tcp_socket);
 #if defined(_WIN32)
     WSACleanup();
 #endif
+    tcp_socket = -1;
+    tcp_connection_handling_.store(false);
     return -1;
   }
   // 设置非阻塞模式.
 #if defined(__linux__)
-  int flags = fcntl(client_, F_GETFL, 0);
-  fcntl(client_, F_SETFL, flags | O_NONBLOCK);
+  int flags = fcntl(tcp_socket, F_GETFL, 0);
+  fcntl(tcp_socket, F_SETFL, flags | O_NONBLOCK);
 #elif defined(_WIN32)
   unsigned long ul = 1;
-  if (ioctlsocket(client_, FIONBIO, (unsigned long *)&ul) == SOCKET_ERROR) {
-    printf("%s[%d]: Set socket nonblock failed!!!\n", __FUNCTION__, __LINE__);
+  if (ioctlsocket(tcp_socket, FIONBIO, (unsigned long *)&ul) == SOCKET_ERROR) {
+    printf("[%s:%d] Set socket nonblock failed!!!\n", ip_.c_str(), port_);
+    Close(tcp_socket);
+#if defined(_WIN32)
+    WSACleanup();
+#endif
+    tcp_socket = -1;
+    tcp_connection_handling_.store(false);
     return -1;
   }
 #endif
+  client_ = tcp_socket;
   is_connected_.store(true);
+  tcp_connection_handling_.store(false);
+  printf("[%s:%d] TCP connected.\n", ip_.c_str(), port_);
   return 0;
 }
 
 // 与JT808服务端进行注册和鉴权操作, 这两项操作通过后才可以与JT808服务端
 // 进行合法通信.
 int JT808Client::JT808ConnectionAuthentication(void) {
-  if (is_connected_ == false) return -1;
+  if (is_connected_.load() == false) return -1;
+  if (jt808_connection_handling_.load()) return -1;
+  if (is_authenticated_.load()) return 0;
+  jt808_connection_handling_.store(true);
   //
   // 注册.
   //
   // 生成并发送注册消息.
   if (PackagingAndSendMessage(kTerminalRegister) < 0) {
     Close(client_);
+#if defined(_WIN32)
+    WSACleanup();
+#endif
+    client_ = -1;
     is_connected_ = false;
+    jt808_connection_handling_.store(false);
     return -1;
   }
   // 从注册应答消息中解析出注册结果和鉴权码.
@@ -166,12 +194,24 @@ int JT808Client::JT808ConnectionAuthentication(void) {
   parameter_.parse.authentication_code.clear();
   if (ReceiveAndParseMessage(5) < 0) {
     Close(client_);
+#if defined(_WIN32)
+    WSACleanup();
+#endif
+    client_ = -1;
     is_connected_.store(false);
+    jt808_connection_handling_.store(false);
     return -1;
   }
   // 检查注册结果.
   if ((parameter_.parse.msg_head.msg_id != kTerminalRegisterResponse) ||
       (parameter_.parse.respone_result != kRegisterSuccess)) {
+    Close(client_);
+#if defined(_WIN32)
+    WSACleanup();
+#endif
+    client_ = -1;
+    is_connected_.store(false);
+    jt808_connection_handling_.store(false);
     return -1;
   }
   //
@@ -180,24 +220,41 @@ int JT808Client::JT808ConnectionAuthentication(void) {
   // 生成并发送鉴权消息.
   if (PackagingAndSendMessage(kTerminalAuthentication) < 0) {
     Close(client_);
+#if defined(_WIN32)
+    WSACleanup();
+#endif
+    client_ = -1;
     is_connected_.store(false);
+    jt808_connection_handling_.store(false);
     return -1;
   }
   // 从通用应答中解析出鉴权结果.
   parameter_.parse.respone_result = kFailure;
   if (ReceiveAndParseMessage(5) < 0) {
     Close(client_);
+#if defined(_WIN32)
+    WSACleanup();
+#endif
+    client_ = -1;
     is_connected_.store(false);
+    jt808_connection_handling_.store(false);
     return -1;
   }
   // 检查鉴权结果.
   if ((parameter_.parse.respone_msg_id != kTerminalAuthentication) ||
       (parameter_.parse.respone_result != kSuccess)) {
     Close(client_);
+#if defined(_WIN32)
+    WSACleanup();
+#endif
+    client_ = -1;
     is_connected_.store(false);
+    jt808_connection_handling_.store(false);
     return -1;
   }
   is_authenticated_.store(true);
+  jt808_connection_handling_.store(false);
+  printf("[%s:%d]: JT808 connected.\n", ip_.c_str(), port_);
   return 0;
 }
 
@@ -210,16 +267,18 @@ void JT808Client::Run(void) {
 
 // 停止服务线程并清除TCP连接.
 void JT808Client::Stop(void) {
+  service_is_running_.store(false);
+  if (tcp_connection_handling_.load()) return;
+  if (jt808_connection_handling_.load()) return;
   if (client_ > 0) {
-    service_is_running_.store(false);
     Close(client_);
-    client_ = 0;
+    client_ = -1;
 #if defined(_WIN32)
     WSACleanup();
 #endif
-    is_authenticated_.store(false);
-    is_connected_.store(false);
   }
+  is_authenticated_.store(false);
+  is_connected_.store(false);
 }
 
 void JT808Client::WattingStop(int const& timeout_msec) {
@@ -440,22 +499,26 @@ void JT808Client::ThreadHandler(void) {
   std::atomic_bool recv_running;
   send_running.store(false);
   recv_running.store(false);
+  std::string server_ip = ip_;
+  int server_port = port_;
   while (service_is_running_) {
-    if (!send_running) {
+    if (!send_running.load()) {
       std::thread(&JT808Client::SendHandler, this, &send_running).detach();
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    if (!recv_running) {
+    if (!recv_running.load()) {
       std::thread(&JT808Client::ReceiveHandler, this, &recv_running).detach();
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
   }
   // 线程终止.
   send_running.store(false);
   recv_running.store(false);
   service_is_running_.store(false);
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   Stop();
+  printf("[%s:%d] Main service done.\r\n", server_ip.c_str(), server_port);
 }
 
 void JT808Client::SendHandler(std::atomic_bool *const running) {
@@ -480,7 +543,9 @@ void JT808Client::SendHandler(std::atomic_bool *const running) {
   }
   bool first_report = true;
   manual_deal_.store(false);
-  while (*running) {
+  std::string server_ip = ip_;
+  int server_port = port_;
+  while (running->load()) {
     // if (manual_deal_.load()) {
     //   std::this_thread::sleep_for(std::chrono::milliseconds(20));
     //   continue;
@@ -494,11 +559,11 @@ void JT808Client::SendHandler(std::atomic_bool *const running) {
           // for (auto const& uch : msg) printf("%02X ", uch);
           // printf("\n");
           if (Send(client_, reinterpret_cast<char*>(msg.data()),
-                  msg.size(), 0) <= 0) {
+              msg.size(), 0) <= 0) {
             printf("%s[%d]: Send message failed !!!\n",
                 __FUNCTION__, __LINE__);
             service_is_running_.store(false);
-            break;
+            return;
           }
           std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
@@ -515,11 +580,11 @@ void JT808Client::SendHandler(std::atomic_bool *const running) {
           // for (auto const& uch : msg) printf("%02X ", uch);
           // printf("\n");
           if (Send(client_, reinterpret_cast<char*>(msg.data()),
-                  msg.size(), 0) <= 0) {
-            printf("%s[%d]: Send message failed !!!\n",
-                __FUNCTION__, __LINE__);
+                msg.size(), 0) <= 0) {
+            printf("[%s:%d] Send data failed !!!\n",
+                server_ip.c_str(), server_port);
             service_is_running_.store(false);
-            break;
+            return;
           }
           std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
@@ -563,6 +628,7 @@ void JT808Client::SendHandler(std::atomic_bool *const running) {
     }
   }
   running->store(false);
+  printf("[%s:%d] Send service done.\r\n", server_ip.c_str(), server_port);
 }
 
 void JT808Client::ReceiveHandler(std::atomic_bool *const running) {
@@ -575,7 +641,9 @@ void JT808Client::ReceiveHandler(std::atomic_bool *const running) {
   int total_size = 0;
   int packet_max_size = 0;
   manual_deal_.store(false);
-  while (*running) {
+  std::string server_ip = ip_;
+  int server_port = port_;
+  while (running->load()) {
     if (manual_deal_.load()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
       continue;
@@ -683,14 +751,23 @@ void JT808Client::ReceiveHandler(std::atomic_bool *const running) {
         }
       }
     } else if (ret == 0) {
-      printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
+      printf("[%s:%d] Disconnect !!!\n", server_ip.c_str(), server_port);
       service_is_running_.store(false);
-      break;
-    } else {  // TODO(mengyuming@hotmail.com): 其它连接错误需处理.
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      return;
+    } else {
+      if ((errno == EAGAIN) || (errno == EWOULDBLOCK) || (errno == EINTR)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        continue;
+      } else {
+        printf("[%s:%d] Remote socket error!!!\n",
+            server_ip.c_str(), server_port);
+        service_is_running_.store(false);
+        return;
+      }
     }
   }
   running->store(false);
+  printf("[%s:%d] Receive service done.\r\n", server_ip.c_str(), server_port);
 }
 
 }  // namespace libjt808

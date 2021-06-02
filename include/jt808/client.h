@@ -520,6 +520,8 @@ class JT808Client {
   std::atomic_bool location_report_msg_generate_outside_;  // 外部控制生成位置上报信息.
   std::thread service_thread_;  // 服务线程.
   std::atomic_bool service_is_running_;  // 服务线程运行标志.
+  std::atomic_bool tcp_connection_handling_;  // 正在建立TCP连接标志.
+  std::atomic_bool jt808_connection_handling_;  // 正在进行JT808连接认证标志.
   TerminalParameterCallback terminal_parameter_callback_;  // 修改终端参数回调函数.
   UpgradeCallback upgrade_callback_;  // 下发终端升级包回调函数.
   PolygonAreaCallback polygon_area_callback_;  // 修改多边形区域回调函数.
